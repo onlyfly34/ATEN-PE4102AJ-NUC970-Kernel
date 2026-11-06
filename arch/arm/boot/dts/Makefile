@@ -1412,6 +1412,7 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	aspeed-bmc-quanta-q71l.dtb
 dtb-$(CONFIG_ARCH_NUC970) += \
 	nuc972-evb.dtb \
+	nuc977-pe4102.dtb \
 	numaker-hmi-n9h30.dtb \
 	n9h30-nudesign.dtb 
 
