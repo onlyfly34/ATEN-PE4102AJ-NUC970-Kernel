@@ -1,0 +1,98 @@
+/*
+ * Device Tree for the ATEN PE4102AJ / PE4102G eco PDU (Nuvoton NUC977).
+ * SPI-NOR root (MX25L25635, 32MB), 14-partition dual-bank layout, UART6 on PG
+ * (NOT PB — PB2 is the buzzer), NAND/LCD/audio/capture disabled.
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ */
+/dts-v1/;
+
+#include "nuc970.dtsi"
+/ {
+	model = "ATEN PE4102AJ (NUC977)";
+	compatible = "nuvoton,nuc977-pe4102", "nuvoton,nuc970";
+
+	chosen {
+		/* U-Boot's flashboot overrides bootargs (sets root= per bootsel); this is a fallback. */
+		bootargs = "console=ttyS0,115200n8 mem=64M root=/dev/mtdblock3";
+	};
+
+	apb {
+		uart1: serial@b8000100 { status = "disabled"; };
+		uart2: serial@b8000200 { status = "disabled"; };
+		uart3: serial@b8000300 { status = "disabled"; };
+		uart4: serial@b8000400 { status = "disabled"; };
+		uart5: serial@b8000500 { status = "disabled"; };
+
+		/* UART6 = metering MCU link. MUST use the PG pins (PG11/PG12); the dtsi
+		 * default pinctrl_uart6_PB would put UART6_TX on PB2 = the buzzer. */
+		uart6: serial@b8000600 {
+			pinctrl-0 = <&pinctrl_uart6_PG>;
+			status = "okay";
+		};
+		uart7: serial@b8000700 { status = "disabled"; };
+		uart8: serial@b8000800 { status = "disabled"; };
+		uart9: serial@b8000900 { status = "disabled"; };
+		uart10: serial@b8000a00 { status = "disabled"; };
+
+		can0: can@b800b000 { status = "disabled"; };
+		can1: can@b800b400 { status = "disabled"; };
+		kpi: kpi@b8008000 { status = "disabled"; };
+		rtc: rtc@b8004000 { status = "okay"; };
+		jpeg: jpeg@b000a000 { status = "disabled"; };
+		adc: adc@b800a000 { status = "disabled"; };
+		nadc: nadc@b800a000 { status = "disabled"; };
+		i2c0: i2c0@b8006000 { status = "disabled"; };
+		i2c1: i2c1@b8006100 { status = "disabled"; };
+		pwm0: pwm0@b8007000 { status = "disabled"; };
+		pwm1: pwm1@b8007000 { status = "disabled"; };
+		pwm2: pwm2@b8007000 { status = "disabled"; };
+		pwm3: pwm3@b8007000 { status = "disabled"; };
+	};
+
+	ahb {
+		usbh_ehci@b0005000 { status = "okay"; };
+		usbh_ohci@b0007000 { status = "okay"; };
+		crypto@b000f000 { status = "okay"; };
+		usbdev@b0006000 { status = "okay"; };
+		emac0@b0002000 { status = "okay"; };
+		dma@b0004000 { status = "okay"; };	/* vendor /dev/dma_proxy */
+
+		fmi@b000d000 { status = "disabled"; };	/* NAND unused (we boot SPI-NOR) */
+		sdh@b000c000 { status = "disabled"; };
+		cap@b000e000 { status = "disabled"; };
+		ebi@b0001000 { status = "disabled"; };
+		emac1@b0003000 { status = "disabled"; };
+		lcd@b0008000 { status = "disabled"; };
+		ge2d@b000b000 { status = "disabled"; };
+		i2s: i2s@b0009000 { status = "disabled"; };
+		i2s_pcm: i2s_pcm { status = "disabled"; };
+	};
+};
+
+/* SPI-NOR root: replace the dtsi's 2-partition demo with the real ATEN 14-partition map */
+&spi0 {
+	status = "okay";
+};
+
+&flash {
+	compatible = "jedec,spi-nor";
+	spi-max-frequency = <18750000>;
+	/delete-node/ partition@0;
+	/delete-node/ partition@1;
+
+	partition@0        { label = "boot";           reg = <0x00000000 0x00080000>; read-only; };
+	partition@80000    { label = "factory";        reg = <0x00080000 0x00080000>; };
+	partition@100000   { label = "kernel";         reg = <0x00100000 0x00280000>; };
+	partition@380000   { label = "rootfs";         reg = <0x00380000 0x00900000>; };
+	partition@c80000   { label = "kernel redund";  reg = <0x00c80000 0x00280000>; };
+	partition@f00000   { label = "rootfs redund";  reg = <0x00f00000 0x00900000>; };
+	partition@1800000  { label = "kernel default"; reg = <0x01800000 0x00200000>; };
+	partition@1a00000  { label = "rootfs default"; reg = <0x01a00000 0x00300000>; };
+	partition@1d00000  { label = "config1";        reg = <0x01d00000 0x00080000>; };
+	partition@1d80000  { label = "config2";        reg = <0x01d80000 0x00080000>; };
+	partition@1e00000  { label = "data1";          reg = <0x01e00000 0x00080000>; };
+	partition@1e80000  { label = "data2";          reg = <0x01e80000 0x00080000>; };
+	partition@1f00000  { label = "event1";         reg = <0x01f00000 0x00080000>; };
+	partition@1f80000  { label = "event2";         reg = <0x01f80000 0x00080000>; };
+};
