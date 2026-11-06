@@ -884,35 +884,27 @@ struct platform_device nuc970_device_i2c1 = {
 /* spi device, spi flash info */
 #ifdef CONFIG_MTD_M25P80
 static struct mtd_partition nuc970_spi0_flash_partitions[] = {
- #ifdef CONFIG_BOARD_ETH2UART
-         {
-                .name = "kernel",
-                .size = 0x0800000,
-                .offset = 0x1000000,
-        },
-        {
-                .name = "rootfs",
-                .size = 0x0800000,
-                .offset = 0x1800000,
-        },
- #else
-        {
-                .name = "kernel",
-                .size = 0x0800000,
-                .offset = 0,
-        },
-        {
-                .name = "rootfs",
-                .size = 0x0800000,
-                .offset = 0x0800000,
-        },
- #endif
+	/* ATEN PE4102 dual-bank layout on MX25L25635 (32MB), matches /proc/mtd */
+	{ .name = "boot",           .offset = 0x00000000, .size = 0x00080000 }, /* mtd0  */
+	{ .name = "factory",        .offset = 0x00080000, .size = 0x00080000 }, /* mtd1  */
+	{ .name = "kernel",         .offset = 0x00100000, .size = 0x00280000 }, /* mtd2  */
+	{ .name = "rootfs",         .offset = 0x00380000, .size = 0x00900000 }, /* mtd3  */
+	{ .name = "kernel redund",  .offset = 0x00c80000, .size = 0x00280000 }, /* mtd4  */
+	{ .name = "rootfs redund",  .offset = 0x00f00000, .size = 0x00900000 }, /* mtd5  */
+	{ .name = "kernel default", .offset = 0x01800000, .size = 0x00200000 }, /* mtd6  */
+	{ .name = "rootfs default", .offset = 0x01a00000, .size = 0x00300000 }, /* mtd7  */
+	{ .name = "config1",        .offset = 0x01d00000, .size = 0x00080000 }, /* mtd8  */
+	{ .name = "config2",        .offset = 0x01d80000, .size = 0x00080000 }, /* mtd9  */
+	{ .name = "data1",          .offset = 0x01e00000, .size = 0x00080000 }, /* mtd10 */
+	{ .name = "data2",          .offset = 0x01e80000, .size = 0x00080000 }, /* mtd11 */
+	{ .name = "event1",         .offset = 0x01f00000, .size = 0x00080000 }, /* mtd12 */
+	{ .name = "event2",         .offset = 0x01f80000, .size = 0x00080000 }, /* mtd13 */
 };
 static struct flash_platform_data nuc970_spi0_flash_data = {
         .name = "m25p80",
         .parts =  nuc970_spi0_flash_partitions,
         .nr_parts = ARRAY_SIZE(nuc970_spi0_flash_partitions),
-        .type = "w25q128",
+        .type = NULL,	/* auto-detect via JEDEC (real chip is mx25l25635e, 32MB) */
 };
 #endif
 
