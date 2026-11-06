@@ -26,8 +26,78 @@
 #include <mach/irqs.h>
 #include <mach/regs-gcr.h>
 #include <mach/regs-aic.h>
+#include <mach/regs-gpio.h>
+#include <mach/regs-clock.h>
+#include <linux/init.h>
+#include <linux/timer.h>
+#include <linux/io.h>
+#include <linux/jiffies.h>
+#include <linux/err.h>
 #include "cpu.h"
 #include "pm.h"
+
+/*
+ * External hardware-watchdog "WDI" keep-alive (PE4102 board). Its WDI input is
+ * NUC970 GPIO44 = PB12; if PB12 is not toggled the external IC hard-resets the
+ * board ~3s into boot, before userland. Replicate the vendor initWdt: hold the
+ * GPIO APB clock on (via the clock framework), put PB12 in GPIO-output mode, and
+ * toggle it every WDI_PING_MS from an early_initcall timer. A real lockup stops
+ * the timer so the external WDT still protects against hangs.
+ *
+ * Clock handling (5.10): the GPIO APB gate is REG_CLK_PCLKEN0 bit3, registered by
+ * nuc970_init_clocks() as clkdev "gpio". That runs from time_init() (before any
+ * initcall), so clk_get(NULL,"gpio") here at early_initcall succeeds; a held
+ * clk_prepare_enable() keeps the gate on for the board's lifetime, so
+ * clk_disable_unused() (late_initcall) cannot gate it and no per-tick re-assert is
+ * needed. (The gpio-nuc970 driver also clk_enable()s "gpio" at its device_initcall
+ * probe and does not reset PB12's MFP/DIR, so MFP+DIR are set once here too.)
+ */
+#define WDI_DIR		REG_GPIOB_DIR		/* GPIO_BA + 0x40 */
+#define WDI_DOUT	REG_GPIOB_DATAOUT	/* GPIO_BA + 0x44 */
+#define WDI_BIT		(1u << 12)		/* PB12            */
+#define WDI_PING_MS	100
+static struct timer_list nuc970_wdi_timer;
+static struct clk *nuc970_wdi_clk;	/* held enabled for the board's lifetime */
+
+static void nuc970_wdi_fn(struct timer_list *unused)
+{
+	/* Just feed the external watchdog: toggle PB12. The GPIO APB clock is held on
+	 * via the clock framework and nothing re-muxes/re-directions PB12, so no
+	 * per-tick clock/MFP/DIR re-assert is needed. */
+	__raw_writel(__raw_readl(WDI_DOUT) ^ WDI_BIT, WDI_DOUT);	/* toggle PB12 */
+	mod_timer(&nuc970_wdi_timer, jiffies + msecs_to_jiffies(WDI_PING_MS));
+}
+
+static int __init nuc970_wdi_init(void)
+{
+	u32 v;
+
+	/* Hold the GPIO APB clock on through the clock framework. */
+	nuc970_wdi_clk = clk_get(NULL, "gpio");
+	if (!IS_ERR(nuc970_wdi_clk)) {
+		clk_prepare_enable(nuc970_wdi_clk);
+	} else {
+		/* Fallback only (framework unexpectedly not ready): ungate directly so
+		 * the WDI still works; without a held ref clk_disable_unused() could
+		 * gate it, so warn loudly if we ever land here. */
+		__raw_writel(__raw_readl(REG_CLK_PCLKEN0) | (1u << 3), REG_CLK_PCLKEN0);
+		nuc970_wdi_clk = NULL;
+		pr_warn("nuc970 wdi: clk_get(gpio) failed, fell back to direct PCLKEN0\n");
+	}
+
+	/* PB12 -> GPIO function (MFP_GPB_H nibble [19:16] = 0), output. Set once. */
+	v = __raw_readl(REG_MFP_GPB_H);
+	v &= ~(0xFu << 16);
+	__raw_writel(v, REG_MFP_GPB_H);
+	__raw_writel(__raw_readl(WDI_DIR) | WDI_BIT, WDI_DIR);
+
+	pr_info("nuc970 wdi: WDI=PB12 (gpio44) toggle %dms, clk=%s\n",
+		WDI_PING_MS, nuc970_wdi_clk ? "framework" : "direct-fallback");
+	timer_setup(&nuc970_wdi_timer, nuc970_wdi_fn, 0);
+	mod_timer(&nuc970_wdi_timer, jiffies + msecs_to_jiffies(WDI_PING_MS));
+	return 0;
+}
+early_initcall(nuc970_wdi_init);
 
 /* Initial IO mappings */	//TODO: MAP ENABLED IP ONLY
 static struct map_desc nuc970_iodesc[] __initdata = {
