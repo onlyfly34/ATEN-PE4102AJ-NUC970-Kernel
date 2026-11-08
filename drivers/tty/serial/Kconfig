@@ -1545,6 +1545,24 @@ config SERIAL_LITEUART_CONSOLE
 	  and warnings and which allows logins in single user mode).
 	  Otherwise, say 'N'.
 
+config SERIAL_NUC970
+	tristate "Nuvoton NUC970 UART support"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on COMMON_CLK
+	select SERIAL_CORE
+	help
+	  Support for the UARTs of Nuvoton NUC970 family SoCs. The ports
+	  are registered as ttyS<n>, n taken from the serialN DT alias, so
+	  this cannot be combined with the 8250 driver.
+
+config SERIAL_NUC970_CONSOLE
+	bool "Console on NUC970 UART"
+	depends on SERIAL_NUC970=y
+	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
+	help
+	  Allow a NUC970 UART to be the system console (and earlycon).
+
 config SERIAL_SUNPLUS
 	tristate "Sunplus UART support"
 	depends on ARCH_SUNPLUS || COMPILE_TEST
