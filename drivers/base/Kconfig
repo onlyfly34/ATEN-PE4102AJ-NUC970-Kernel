@@ -218,7 +218,7 @@ config FMI_NUC970
 
 choice
 	prompt "Select FMI device to support"
-	default NUC970_FMI_MTD_NAND
+	optional
 	depends on FMI_NUC970
 	help
 	  Select FMI device to support, such as SD card or NAND Flash device.
