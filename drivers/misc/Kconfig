@@ -644,6 +644,20 @@ config MCHP_LAN966X_PCI
 	    - lan966x-miim (MDIO_MSCC_MIIM)
 	    - lan966x-switch (LAN966X_SWITCH)
 
+config NUC970_ETIMER
+	tristate "Nuvoton NUC970 ETIMER character device"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on OF && COMMON_CLK
+	help
+	  Exposes the four enhanced timers (ETIMER0..3) of the Nuvoton
+	  NUC970/NUC977 as /dev/etimer0../dev/etimer3, with the ioctl
+	  interface of Nuvoton's BSP (periodic, toggle, capture modes) and
+	  the software-watchdog ioctls of the ATEN PE4102 vendor kernel.
+	  It exists for binary compatibility with the PE4102 vendor userland.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called nuc970-etimer.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
