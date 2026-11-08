@@ -11,6 +11,16 @@ menuconfig CRYPTO_HW
 
 if CRYPTO_HW
 
+config CRYPTO_DEV_NUC970
+	tristate "Nuvoton NUC970 AES accelerator"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on HAS_IOMEM && HAS_DMA
+	select CRYPTO_ENGINE
+	select CRYPTO_SKCIPHER
+	help
+	  Driver for the AES engine in the Nuvoton NUC970/NUC977 crypto
+	  block. It provides ecb(aes), cbc(aes) and ctr(aes).
+
 source "drivers/crypto/allwinner/Kconfig"
 
 config CRYPTO_DEV_PADLOCK
