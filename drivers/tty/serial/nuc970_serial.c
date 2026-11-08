@@ -7,6 +7,12 @@
  * for the current serial core: DT probing, per-port clocks, kfifo TX via
  * uart_port_tx(), console and earlycon.
  *
+ * RS485 follows the BSP's default build (DISABLE_AUTO_DIRECTION undefined):
+ * the UART is switched to its RS485 function with hardware auto-direction
+ * control, so the controller itself drives RTS for the whole frame and
+ * releases it after the last stop bit. TIOCSRS485/TIOCGRS485 and the DT
+ * rs485 properties are handled by the serial core.
+ *
  * Ports are named ttyS<n> where <n> comes from the "serialN" DT alias, so the
  * vendor userland keeps its ttyS0 (console) / ttyS6 (metering MCU) names.
  */
@@ -76,6 +82,14 @@
 #define REG_BAUD	0x24
 #define  BAUD_MODE2	(0x3 << 28)	/* DIV_X_EN | DIV_X_ONE: clk/(BRD+2) */
 #define  BAUD_BRD_MASK	0xffff
+#define REG_ALT_CSR	0x2c
+#define  ALT_CSR_RS485_NMM BIT(8)	/* normal multidrop mode */
+#define  ALT_CSR_RS485_AAD BIT(9)	/* auto address detection */
+#define  ALT_CSR_RS485_AUD BIT(10)	/* auto direction control */
+#define REG_FUN_SEL	0x30
+#define  FUN_SEL_MASK	0x7
+#define  FUN_SEL_UART	0x0
+#define  FUN_SEL_RS485	0x3
 
 struct nuc970_uart {
 	struct uart_port port;
@@ -118,22 +132,53 @@ static unsigned int nuc970_get_mctrl(struct uart_port *port)
 	return ret;
 }
 
+/*
+ * MCR value for RS485 auto-direction mode: the hardware asserts RTS while
+ * transmitting and LEV_RTS selects the pin level of "asserted" (clear: high,
+ * as in the BSP's SER_RS485_RTS_ON_SEND path). The software RTS bit is left
+ * inactive so the pin already sits at the receive level before the function
+ * switch.
+ */
+static u32 nuc970_rs485_mcr(u32 mcr, const struct serial_rs485 *rs485)
+{
+	mcr |= MCR_RTS;
+	if (rs485->flags & SER_RS485_RTS_ON_SEND)
+		mcr &= ~MCR_LEV_RTS;
+	else
+		mcr |= MCR_LEV_RTS;
+	return mcr;
+}
+
 static void nuc970_set_mctrl(struct uart_port *port, unsigned int mctrl)
 {
 	u32 mcr = nuc970_read(port, REG_MCR);
 	u32 ier = nuc970_read(port, REG_IER);
 
-	/* active-low signals: LEV_RTS selects high-level trigger */
-	mcr |= MCR_LEV_RTS;
-	if (mctrl & TIOCM_RTS)
-		mcr &= ~MCR_RTS;
-	else
-		mcr |= MCR_RTS;
+	ier &= ~(IER_AUTO_RTS | IER_AUTO_CTS);
 
-	if (port->status & UPSTAT_AUTOCTS)
-		ier |= IER_AUTO_RTS | IER_AUTO_CTS;
-	else
-		ier &= ~(IER_AUTO_RTS | IER_AUTO_CTS);
+	if (port->rs485.flags & SER_RS485_ENABLED) {
+		/* RTS belongs to the auto-direction logic; no flow control */
+		mcr = nuc970_rs485_mcr(mcr, &port->rs485);
+	} else {
+		/* active-low signals: LEV_RTS selects high-level trigger */
+		mcr |= MCR_LEV_RTS;
+		if (mctrl & TIOCM_RTS)
+			mcr &= ~MCR_RTS;
+		else
+			mcr |= MCR_RTS;
+
+		/*
+		 * Hardware RTS flow control follows TIOCM_RTS: the core
+		 * throttles by clearing it (no UPSTAT_AUTORTS, so it never
+		 * calls the absent ->throttle op), which drops back to the
+		 * inactive software RTS above.
+		 */
+		if (port->status & UPSTAT_AUTOCTS) {
+			ier |= IER_AUTO_CTS;
+			if (mctrl & TIOCM_RTS)
+				ier |= IER_AUTO_RTS;
+		}
+	}
 
 	nuc970_write(port, REG_MSR, nuc970_read(port, REG_MSR) | MSR_LEV_CTS);
 	nuc970_write(port, REG_MCR, mcr);
@@ -335,10 +380,14 @@ static void nuc970_set_termios(struct uart_port *port, struct ktermios *termios,
 			port->ignore_status_mask |= FSR_RX_OVER;
 	}
 
+	/*
+	 * Only UPSTAT_AUTOCTS: UPSTAT_AUTORTS would make uart_throttle() call
+	 * ops->throttle, which this driver does not implement (NULL deref).
+	 */
 	if (termios->c_cflag & CRTSCTS)
-		port->status |= UPSTAT_AUTOCTS | UPSTAT_AUTORTS;
+		port->status |= UPSTAT_AUTOCTS;
 	else
-		port->status &= ~(UPSTAT_AUTOCTS | UPSTAT_AUTORTS);
+		port->status &= ~UPSTAT_AUTOCTS;
 	nuc970_set_mctrl(port, port->mctrl);
 
 	nuc970_write(port, REG_BAUD, BAUD_MODE2 | (quot & BAUD_BRD_MASK));
@@ -372,6 +421,41 @@ static int nuc970_verify_port(struct uart_port *port,
 {
 	return -EINVAL;
 }
+
+/*
+ * Called by the serial core with the port lock held, before port->rs485 is
+ * updated, so only @rs485 describes the requested state. Mirrors the BSP's
+ * nuc970serial_config_rs485() auto-direction path: FUN_SEL = RS485 plus
+ * ALT_CSR.RS485_AUD, RTS polarity via MCR.LEV_RTS. The BSP had no hardware
+ * RTS delays (it only stored the values), so none are advertised.
+ */
+static int nuc970_rs485_config(struct uart_port *port, struct ktermios *termios,
+			       struct serial_rs485 *rs485)
+{
+	u32 fun = nuc970_read(port, REG_FUN_SEL) & ~FUN_SEL_MASK;
+	u32 alt = nuc970_read(port, REG_ALT_CSR) &
+		  ~(ALT_CSR_RS485_NMM | ALT_CSR_RS485_AAD | ALT_CSR_RS485_AUD);
+
+	if (rs485->flags & SER_RS485_ENABLED) {
+		nuc970_write(port, REG_IER, nuc970_read(port, REG_IER) &
+			     ~(IER_AUTO_RTS | IER_AUTO_CTS));
+		nuc970_write(port, REG_MCR,
+			     nuc970_rs485_mcr(nuc970_read(port, REG_MCR), rs485));
+		nuc970_write(port, REG_ALT_CSR, alt | ALT_CSR_RS485_AUD);
+		nuc970_write(port, REG_FUN_SEL, fun | FUN_SEL_RS485);
+	} else {
+		/* the core restores RTS/flow control via set_mctrl() */
+		nuc970_write(port, REG_FUN_SEL, fun | FUN_SEL_UART);
+		nuc970_write(port, REG_ALT_CSR, alt);
+	}
+
+	return 0;
+}
+
+static const struct serial_rs485 nuc970_rs485_supported = {
+	.flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND |
+		 SER_RS485_RTS_AFTER_SEND,
+};
 
 #ifdef CONFIG_CONSOLE_POLL
 static int nuc970_poll_get_char(struct uart_port *port)
@@ -560,6 +644,8 @@ static int nuc970_uart_probe(struct platform_device *pdev)
 	up->port.irq = irq;
 	up->port.fifosize = NUC970_UART_FIFO;
 	up->port.ops = &nuc970_uart_ops;
+	up->port.rs485_config = nuc970_rs485_config;
+	up->port.rs485_supported = nuc970_rs485_supported;
 	up->port.flags = UPF_BOOT_AUTOCONF;
 	up->port.has_sysrq = IS_ENABLED(CONFIG_SERIAL_NUC970_CONSOLE);
 	up->port.uartclk = clk_get_rate(up->eclk);
@@ -568,14 +654,28 @@ static int nuc970_uart_probe(struct platform_device *pdev)
 		up->port.uartclk = 12000000;
 	}
 
+	/* rs485-rts-active-low, rs485-rts-delay, linux,rs485-enabled-at-boot-time */
+	ret = uart_get_rs485_mode(&up->port);
+	if (ret)
+		goto err_clear;
+
+	/*
+	 * Start from plain UART function unless RS485 is enabled at boot (the
+	 * core then applies it from uart_add_one_port()).
+	 */
+	if (!(up->port.rs485.flags & SER_RS485_ENABLED))
+		nuc970_rs485_config(&up->port, NULL, &up->port.rs485);
+
 	platform_set_drvdata(pdev, up);
 
 	ret = uart_add_one_port(&nuc970_uart_driver, &up->port);
-	if (ret) {
-		up->port.dev = NULL;
-		return ret;
-	}
+	if (ret)
+		goto err_clear;
 	return 0;
+
+err_clear:
+	up->port.dev = NULL;
+	return dev_err_probe(dev, ret, "failed to register ttyS%d\n", line);
 }
 
 static void nuc970_uart_remove(struct platform_device *pdev)
