@@ -248,7 +248,7 @@ static void i2c_nuc970_irq_nextbyte(struct nuc970_i2c *i2c,
 		/* fall through to the write state, as we will need to
 		 * send a byte as well
 		*/
-
+		fallthrough;
 	case STATE_WRITE:
 		/* we are writing data to the device... check for the
 		 * end of the message, and if so, work out what to do

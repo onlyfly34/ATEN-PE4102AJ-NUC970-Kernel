@@ -108,12 +108,12 @@ static int nuc970_clockevent_setnextevent(unsigned long evt,
 {
 	unsigned int tcsr, tdelta;
 
-    tcsr = __raw_readl(REG_TMR_TCSR0);
-    tdelta = __raw_readl(REG_TMR_TICR0) - __raw_readl(REG_TMR_TDR0);
+	tcsr = __raw_readl(REG_TMR_TCSR0);
+	tdelta = __raw_readl(REG_TMR_TICR0) - __raw_readl(REG_TMR_TDR0);
 
 	__raw_writel(evt, REG_TMR_TICR0);
-    if(!(tcsr & COUNTEN) && ((tdelta > 2) || (tdelta == 0)))
-        __raw_writel(__raw_readl(REG_TMR_TCSR0) | COUNTEN, REG_TMR_TCSR0);
+	if (!(tcsr & COUNTEN) && ((tdelta > 2) || (tdelta == 0)))
+		__raw_writel(__raw_readl(REG_TMR_TCSR0) | COUNTEN, REG_TMR_TCSR0);
 
 	return 0;
 }
