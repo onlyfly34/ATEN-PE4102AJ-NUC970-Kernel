@@ -59,6 +59,73 @@
 	status = "okay";
 };
 
+/*
+ * Retune APLL to 96 MHz and feed the 48 MHz USB engine clock from it, as the
+ * vendor kernel's USB host driver did (the system clock runs from UPLL).
+ */
+&clk {
+	assigned-clocks = <&clk NUC970_CLK_APLL>,
+			  <&clk NUC970_CLK_USB_APLLDIV>,
+			  <&clk NUC970_CLK_USB_ECLK_MUX>,
+			  <&clk NUC970_CLK_USB_ECLK>;
+	assigned-clock-parents = <0>, <0>, <&clk NUC970_CLK_USB_APLLDIV>, <0>;
+	assigned-clock-rates = <96000000>, <96000000>, <0>, <48000000>;
+};
+
+&rtc {
+	status = "okay";
+};
+
+&gdma {
+	status = "okay";
+};
+
+&crypto {
+	status = "okay";
+};
+
+/*
+ * USB host as on the vendor kernel: port power PE14/PE15, shared
+ * over-current input PH1, active low. (The PE4102AJ property.xml declares
+ * no USB port; kept for parity with the vendor kernel.)
+ */
+&ehci {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usbh_ppwr_pe>;
+	status = "okay";
+};
+
+&ohci {
+	nuvoton,oc-active-low;
+	status = "okay";
+};
+
+/*
+ * ETIMERs as /dev/etimer0..3 for the vendor userland: etimer0 measures the
+ * mains zero-cross input on PB3 (zero_detect_mgr), etimer1 is started by
+ * bin/etimer from rcS, etimer2/3 are delays for libshift_reg_api and
+ * libzero_detect_api, and etimer3 also carries monitord's software watchdog
+ * ioctls. The vendor kernel muxed PB3 only when capture started, hence the
+ * "cap" state instead of "default".
+ */
+&etimer0 {
+	pinctrl-names = "cap";
+	pinctrl-0 = <&pinctrl_etimer0_cap_pb>;
+	status = "okay";
+};
+
+&etimer1 {
+	status = "okay";
+};
+
+&etimer2 {
+	status = "okay";
+};
+
+&etimer3 {
+	status = "okay";
+};
+
 &emac0 {
 	phy-mode = "rmii";
 	status = "okay";

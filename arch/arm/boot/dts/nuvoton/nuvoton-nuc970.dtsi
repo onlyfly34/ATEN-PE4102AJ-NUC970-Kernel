@@ -71,6 +71,17 @@
 						       0x0c 0x0000bbbb 0x0000ffff>;
 			};
 
+			pinctrl_usbh_ppwr_pe: usbh-ppwr-pe-pins {
+				/* PE14 USBH_PPWR0, PE15 USBH_PPWR1, PH1 USBH_OVC */
+				pinctrl-single,bits = <0x24 0x77000000 0xff000000
+						       0x38 0x00000070 0x000000f0>;
+			};
+
+			pinctrl_etimer0_cap_pb: etimer0-cap-pb-pins {
+				/* PB3 ETIMER0 capture input (function 0xf) */
+				pinctrl-single,bits = <0x08 0x0000f000 0x0000f000>;
+			};
+
 			pinctrl_emac0: emac0-pins {
 				/* PF0..PF9 RMII */
 				pinctrl-single,bits = <0x28 0x11111111 0xffffffff
@@ -95,6 +106,48 @@
 			clock-names = "hclk", "eclk";
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_emac0>;
+			status = "disabled";
+		};
+
+		gdma: dma-controller@b0004000 {
+			compatible = "nuvoton,nuc970-dma";
+			reg = <0xb0004000 0x100>;
+			interrupts = <25 IRQ_TYPE_LEVEL_HIGH>,
+				     <26 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_GDMA>;
+			#dma-cells = <1>;
+			status = "disabled";
+		};
+
+		/*
+		 * USB host. EHCI and OHCI share the PHYs (controls in the EHCI
+		 * window), the over-current input (polarity in the OHCI window)
+		 * and the HCLKEN bit 18 gate; both glue drivers program all of
+		 * it so either controller works alone.
+		 */
+		ehci: usb@b0005000 {
+			compatible = "nuvoton,nuc970-ehci";
+			reg = <0xb0005000 0x1000>;
+			interrupts = <23 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_USBH>, <&clk NUC970_CLK_USB_ECLK>;
+			clock-names = "hclk", "eclk";
+			status = "disabled";
+		};
+
+		ohci: usb@b0007000 {
+			compatible = "nuvoton,nuc970-ohci";
+			reg = <0xb0007000 0x1000>;
+			interrupts = <24 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_USBH>, <&clk NUC970_CLK_USB_ECLK>;
+			clock-names = "hclk", "eclk";
+			status = "disabled";
+		};
+
+		crypto: crypto@b000f000 {
+			compatible = "nuvoton,nuc970-crypto";
+			reg = <0xb000f000 0x1000>;
+			interrupts = <35 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_CRYPTO>;
 			status = "disabled";
 		};
 
@@ -215,6 +268,50 @@
 			clocks = <&clk NUC970_CLK_TIMER0>, <&clk NUC970_CLK_TIMER1>;
 		};
 
+		etimer0: timer@b8001400 {
+			compatible = "nuvoton,nuc970-etimer";
+			reg = <0xb8001400 0x100>;
+			interrupts = <47 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_ETIMER0>,
+				 <&clk NUC970_CLK_ETIMER0_ECLK>,
+				 <&clk NUC970_CLK_XIN>, <&clk NUC970_CLK_XIN32K>;
+			clock-names = "pclk", "eclk", "hxt", "lxt";
+			status = "disabled";
+		};
+
+		etimer1: timer@b8001500 {
+			compatible = "nuvoton,nuc970-etimer";
+			reg = <0xb8001500 0x100>;
+			interrupts = <48 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_ETIMER1>,
+				 <&clk NUC970_CLK_ETIMER1_ECLK>,
+				 <&clk NUC970_CLK_XIN>, <&clk NUC970_CLK_XIN32K>;
+			clock-names = "pclk", "eclk", "hxt", "lxt";
+			status = "disabled";
+		};
+
+		etimer2: timer@b8001600 {
+			compatible = "nuvoton,nuc970-etimer";
+			reg = <0xb8001600 0x100>;
+			interrupts = <49 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_ETIMER2>,
+				 <&clk NUC970_CLK_ETIMER2_ECLK>,
+				 <&clk NUC970_CLK_XIN>, <&clk NUC970_CLK_XIN32K>;
+			clock-names = "pclk", "eclk", "hxt", "lxt";
+			status = "disabled";
+		};
+
+		etimer3: timer@b8001700 {
+			compatible = "nuvoton,nuc970-etimer";
+			reg = <0xb8001700 0x100>;
+			interrupts = <50 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_ETIMER3>,
+				 <&clk NUC970_CLK_ETIMER3_ECLK>,
+				 <&clk NUC970_CLK_XIN>, <&clk NUC970_CLK_XIN32K>;
+			clock-names = "pclk", "eclk", "hxt", "lxt";
+			status = "disabled";
+		};
+
 		aic: interrupt-controller@b8002000 {
 			compatible = "nuvoton,nuc970-aic";
 			reg = <0xb8002000 0x200>;
@@ -241,6 +338,15 @@
 				      <&pinctrl 128  64 16>, <&pinctrl 160  80 16>,
 				      <&pinctrl 192  96 16>, <&pinctrl 224 112 16>,
 				      <&pinctrl 256 128 16>, <&pinctrl 288 144  5>;
+			status = "disabled";
+		};
+
+		rtc: rtc@b8004000 {
+			compatible = "nuvoton,nuc970-rtc";
+			reg = <0xb8004000 0x100>;
+			interrupts = <15 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_RTC>;
+			nuvoton,gcr = <&gcr>;
 			status = "disabled";
 		};
 
