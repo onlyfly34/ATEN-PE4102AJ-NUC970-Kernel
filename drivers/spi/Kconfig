@@ -786,6 +786,14 @@ config SPI_LANTIQ_SSC
 	  mode. This controller is found on Intel (former Lantiq) SoCs like
 	  the Danube, Falcon, xRX200, xRX300, Lightning Mountain.
 
+config SPI_NUC970
+	tristate "Nuvoton NUC970 SPI controller"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on COMMON_CLK
+	help
+	  SPI host driver for the SPI0/SPI1 controllers of Nuvoton NUC970
+	  family SoCs, typically used for the boot SPI-NOR flash.
+
 config SPI_OC_TINY
 	tristate "OpenCores tiny SPI"
 	depends on GPIOLIB || COMPILE_TEST
