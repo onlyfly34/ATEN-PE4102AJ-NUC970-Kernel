@@ -774,6 +774,14 @@ config MST_IRQ
 	help
 	  Support MStar Interrupt Controller.
 
+config NUC970_AIC
+	bool "Nuvoton NUC970 Advanced Interrupt Controller" if COMPILE_TEST
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on ARM
+	select IRQ_DOMAIN
+	help
+	  Support for the interrupt controller in Nuvoton NUC970 family SoCs.
+
 config WPCM450_AIC
 	bool "Nuvoton WPCM450 Advanced Interrupt Controller"
 	depends on ARCH_WPCM450
