@@ -1575,13 +1575,6 @@ static int nuc970_mii_setup(struct net_device *netdev)
 	ether->mii_bus->priv = ether;
 	ether->mii_bus->parent = &ether->pdev->dev;
 
-	if (!ether->mii_bus->irq) {
-		err = -ENOMEM;
-		dev_err(&pdev->dev, "kmalloc() failed\n");
-		goto out1;
-
-	}
-
 	for (i = 0; i < PHY_MAX_ADDR; i++)
 		ether->mii_bus->irq[i] = PHY_POLL;
 	//ether->mii_bus->irq[1] = ??   write me after the irq number is known
@@ -1618,8 +1611,6 @@ static int nuc970_mii_setup(struct net_device *netdev)
 out3:
 	mdiobus_unregister(ether->mii_bus);
 out2:
-	kfree(ether->mii_bus->irq);
-out1:
 	mdiobus_free(ether->mii_bus);
 out0:
 
@@ -1808,7 +1799,6 @@ static int nuc970_ether_remove(struct platform_device *pdev)
 		phy_disconnect(ether->phy_dev);
 
 	mdiobus_unregister(ether->mii_bus);
-	kfree(ether->mii_bus->irq);
 	mdiobus_free(ether->mii_bus);
 
 	platform_set_drvdata(pdev, NULL);
