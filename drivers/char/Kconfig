@@ -348,6 +348,18 @@ config DEVPORT
 	  Say Y here if you want to support the /dev/port device. The /dev/port
 	  device is similar to /dev/mem, but for I/O ports.
 
+config NUC970_DMA_PROXY
+	tristate "Nuvoton NUC970 /dev/dma_proxy GDMA user interface"
+	depends on NUC970_GDMA
+	help
+	  /dev/dma_proxy as in Nuvoton's NUC970 3.10 BSP: mmap() gives a
+	  physically contiguous write-combined buffer and ioctl()s report its
+	  address and run GDMA memory-to-memory copies between arbitrary
+	  physical addresses (so it needs CAP_SYS_RAWIO, like /dev/mem).
+	  Only for binary compatibility with BSP user space.
+
+	  If unsure, say N.
+
 config HPET
 	bool "HPET - High Precision Event Timer" if X86
 	default n
