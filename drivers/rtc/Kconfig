@@ -1851,6 +1851,19 @@ config RTC_DRV_MXC_V2
 	   This driver can also be built as a module, if so, the module
 	   will be called "rtc-mxc_v2".
 
+config RTC_DRV_NUC970
+	tristate "Nuvoton NUC970 RTC"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on HAS_IOMEM
+	depends on OF
+	help
+	  If you say yes here you get support for the real time clock of the
+	  Nuvoton NUC970/NUC977 SoC, including the BSP's spare-register and
+	  reset-status ioctls used by the vendor userland.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-nuc970.
+
 config RTC_DRV_SNVS
 	tristate "Freescale SNVS RTC support"
 	select REGMAP_MMIO
