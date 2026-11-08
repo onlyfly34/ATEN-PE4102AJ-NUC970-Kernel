@@ -59,9 +59,110 @@ static const struct clk_ops nuc970_pll_ops = {
 	.recalc_rate = nuc970_pll_recalc_rate,
 };
 
+/*
+ * APLL settings known to the BSP (clk-nuc970-apll.c), for a 12 MHz xin.
+ * The BSP's USB host driver switches APLL to 96 MHz and feeds the 48 MHz
+ * USB engine clock from it; the UPLL (system clock) stays read-only.
+ */
+static const struct {
+	unsigned long rate;
+	u32 val;
+} nuc970_apll_table[] = {
+	{  96000000, 0x8027 },	/* USB host */
+	{  98400000, 0x8028 },	/* I2S */
+	{ 169500000, 0x21f0 },	/* I2S */
+	{ 264000000, 0x0015 },
+	{ 300000000, 0x0018 },
+	{ 360000000, 0x001d },
+};
+
+static int nuc970_apll_determine_rate(struct clk_hw *hw,
+				      struct clk_rate_request *req)
+{
+	unsigned long best = 0;
+	unsigned int i;
+
+	if (req->best_parent_rate != 12000000)
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(nuc970_apll_table); i++)
+		if (!best || abs_diff(nuc970_apll_table[i].rate, req->rate) <
+			     abs_diff(best, req->rate))
+			best = nuc970_apll_table[i].rate;
+
+	req->rate = best;
+	return 0;
+}
+
+static int nuc970_apll_set_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long parent_rate)
+{
+	struct nuc970_pll *pll = container_of(hw, struct nuc970_pll, hw);
+	unsigned long flags;
+	unsigned int i;
+	u32 val;
+
+	for (i = 0; i < ARRAY_SIZE(nuc970_apll_table); i++)
+		if (nuc970_apll_table[i].rate == rate)
+			break;
+	if (i == ARRAY_SIZE(nuc970_apll_table) || parent_rate != 12000000)
+		return -EINVAL;
+
+	/*
+	 * The vendor kernel retunes APLL for USB because the system clock runs
+	 * from UPLL. Refuse if the boot loader put the system clock on APLL.
+	 */
+	if (((readl(pll->reg - CLK_APLLCON + CLK_DIV(0)) >> 3) & 0x3) == 2) {
+		pr_warn("nuc970-clk: system clock runs from APLL, not retuning it\n");
+		return -EBUSY;
+	}
+
+	/* as the BSP: keep [31:28], clear [27:16], set OUT/IN/FB */
+	spin_lock_irqsave(&nuc970_clk_lock, flags);
+	val = readl(pll->reg) & ~0x0fffffff;
+	writel(val | nuc970_apll_table[i].val, pll->reg);
+	spin_unlock_irqrestore(&nuc970_clk_lock, flags);
+
+	return 0;
+}
+
+/*
+ * The BSP's APLL enable: clear power-down (PD, bit 28) and set RESETN
+ * (bit 30).  Without it an APLL that the boot loader left powered down
+ * would report 96 MHz while the USB engine clock is actually stopped.
+ * There is deliberately no .disable (nor .is_enabled), so the APLL is never
+ * powered down behind a user the clock framework does not know about.
+ */
+#define NUC970_PLL_PD		BIT(28)
+#define NUC970_PLL_RESETN	BIT(30)
+
+static int nuc970_apll_enable(struct clk_hw *hw)
+{
+	struct nuc970_pll *pll = container_of(hw, struct nuc970_pll, hw);
+	unsigned long flags;
+	u32 val;
+
+	spin_lock_irqsave(&nuc970_clk_lock, flags);
+	val = readl(pll->reg);
+	val &= ~NUC970_PLL_PD;
+	val |= NUC970_PLL_RESETN;
+	writel(val, pll->reg);
+	spin_unlock_irqrestore(&nuc970_clk_lock, flags);
+
+	return 0;
+}
+
+static const struct clk_ops nuc970_apll_ops = {
+	.enable = nuc970_apll_enable,
+	.recalc_rate = nuc970_pll_recalc_rate,
+	.determine_rate = nuc970_apll_determine_rate,
+	.set_rate = nuc970_apll_set_rate,
+};
+
 static struct clk_hw * __init nuc970_register_pll(const char *name,
 						  const char *parent,
-						  void __iomem *reg)
+						  void __iomem *reg,
+						  const struct clk_ops *ops)
 {
 	struct clk_init_data init = {};
 	struct nuc970_pll *pll;
@@ -72,7 +173,7 @@ static struct clk_hw * __init nuc970_register_pll(const char *name,
 		return ERR_PTR(-ENOMEM);
 
 	init.name = name;
-	init.ops = &nuc970_pll_ops;
+	init.ops = ops;
 	init.parent_names = &parent;
 	init.num_parents = 1;
 	pll->reg = reg;
@@ -124,11 +225,12 @@ struct nuc970_clk_desc {
  * Engine clock with an APLL/UPLL pre-divider, a 4-way source mux
  * (xin, -, apll/div, upll/div), a divider and a gate.
  */
-#define ECLK(_p, _id, _reg, _pdiv_shift, _mux_shift, _div_shift,	\
-	     _div_width, _gate_reg, _gate_bit)				\
-	DIV(NO_ID, _p "_aplldiv", "apll", _reg, _pdiv_shift, 3),	\
-	DIV(NO_ID, _p "_uplldiv", "upll", _reg, _pdiv_shift, 3),	\
-	{ .type = T_MUX, .id = NO_ID, .name = _p "_eclk_mux",		\
+#define ECLK_IDS(_p, _id, _adiv_id, _udiv_id, _mux_id, _reg,		\
+		 _pdiv_shift, _mux_shift, _div_shift, _div_width,	\
+		 _gate_reg, _gate_bit)					\
+	DIV(_adiv_id, _p "_aplldiv", "apll", _reg, _pdiv_shift, 3),	\
+	DIV(_udiv_id, _p "_uplldiv", "upll", _reg, _pdiv_shift, 3),	\
+	{ .type = T_MUX, .id = _mux_id, .name = _p "_eclk_mux",		\
 	  .parents = (const char * const []){ "xin", "dummy",		\
 			_p "_aplldiv", _p "_uplldiv" },			\
 	  .num_parents = 4, .reg = _reg, .shift = _mux_shift,		\
@@ -136,6 +238,11 @@ struct nuc970_clk_desc {
 	DIV(NO_ID, _p "_eclk_div", _p "_eclk_mux", _reg, _div_shift,	\
 	    _div_width),						\
 	GATE(_id, _p "_eclk_gate", _p "_eclk_div", _gate_reg, _gate_bit)
+
+#define ECLK(_p, _id, _reg, _pdiv_shift, _mux_shift, _div_shift,	\
+	     _div_width, _gate_reg, _gate_bit)				\
+	ECLK_IDS(_p, _id, NO_ID, NO_ID, NO_ID, _reg, _pdiv_shift,	\
+		 _mux_shift, _div_shift, _div_width, _gate_reg, _gate_bit)
 
 static const char * const sys_sel[] = { "xin", "dummy", "apll", "upll" };
 static const char * const xin_32k_sel[] = { "xin", "xin32k" };
@@ -210,8 +317,9 @@ static const struct nuc970_clk_desc nuc970_clks[] __initconst = {
 	     CLK_HCLKEN, 16),
 
 	/* engine clocks */
-	ECLK("usb", NUC970_CLK_USB_ECLK, CLK_DIV(2), 0, 3, 8, 4,
-	     CLK_HCLKEN, 18),
+	ECLK_IDS("usb", NUC970_CLK_USB_ECLK, NUC970_CLK_USB_APLLDIV,
+		 NUC970_CLK_USB_UPLLDIV, NUC970_CLK_USB_ECLK_MUX, CLK_DIV(2),
+		 0, 3, 8, 4, CLK_HCLKEN, 18),
 	ECLK("sdh", NUC970_CLK_SDH_ECLK, CLK_DIV(9), 0, 3, 8, 8,
 	     CLK_HCLKEN, 30),
 	ECLK("emmc", NUC970_CLK_EMMC_ECLK, CLK_DIV(3), 0, 3, 8, 8,
@@ -361,9 +469,11 @@ static void __init nuc970_clk_init(struct device_node *np)
 	data->hws[NUC970_CLK_XIN32K] =
 		clk_hw_register_fixed_rate(NULL, "xin32k", NULL, 0, 32768);
 	data->hws[NUC970_CLK_APLL] =
-		nuc970_register_pll("apll", "xin", base + CLK_APLLCON);
+		nuc970_register_pll("apll", "xin", base + CLK_APLLCON,
+				    &nuc970_apll_ops);
 	data->hws[NUC970_CLK_UPLL] =
-		nuc970_register_pll("upll", "xin", base + CLK_UPLLCON);
+		nuc970_register_pll("upll", "xin", base + CLK_UPLLCON,
+				    &nuc970_pll_ops);
 
 	for (i = 0; i < ARRAY_SIZE(nuc970_clks); i++) {
 		const struct nuc970_clk_desc *d = &nuc970_clks[i];

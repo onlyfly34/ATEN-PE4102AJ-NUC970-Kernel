@@ -124,6 +124,11 @@
 #define NUC970_CLK_SMC0			103
 #define NUC970_CLK_SMC1			104
 
-#define NUC970_CLK_NR			105
+/* USB engine clock source selection (for assigned-clocks) */
+#define NUC970_CLK_USB_APLLDIV		105
+#define NUC970_CLK_USB_UPLLDIV		106
+#define NUC970_CLK_USB_ECLK_MUX		107
+
+#define NUC970_CLK_NR			108
 
 #endif /* __DT_BINDINGS_CLOCK_NUVOTON_NUC970_CLK_H */
