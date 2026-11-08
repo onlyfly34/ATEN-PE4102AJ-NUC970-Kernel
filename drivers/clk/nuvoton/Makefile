@@ -2,3 +2,4 @@
 obj-$(CONFIG_CLK_MA35D1) += clk-ma35d1.o
 obj-$(CONFIG_CLK_MA35D1) += clk-ma35d1-divider.o
 obj-$(CONFIG_CLK_MA35D1) += clk-ma35d1-pll.o
+obj-$(CONFIG_CLK_NUC970) += clk-nuc970.o
