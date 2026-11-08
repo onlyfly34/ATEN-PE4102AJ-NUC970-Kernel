@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * ATEN PE4102AJ / PE4102G eco PDU (Nuvoton NUC977, 64 MiB DDR)
+ *
+ * SPI-NOR boot and root (Macronix MX25L25635F, 32 MiB) with the vendor's
+ * 14-partition dual-bank layout, console on UART0 (PE0/PE1), metering MCU on
+ * UART6 (must use PG11/PG12: PB2 is the buzzer), IC+ IP101GA PHY on EMAC0.
+ *
+ * U-Boot 2013.04 boots a uImage with ATAGs; the kernel appends this DTB and
+ * merges U-Boot's bootargs (root= follows the selected bank) after the
+ * bootargs below (CONFIG_ARM_ATAG_DTB_COMPAT_CMDLINE_EXTEND).
+ */
+
+/dts-v1/;
+
+/* the BSP keeps the first page away from the kernel */
+/memreserve/ 0x00000000 0x00001000;
+
+#include "nuvoton-nuc970.dtsi"
+
+/ {
+	model = "ATEN PE4102AJ (NUC977)";
+	compatible = "aten,pe4102aj", "aten,pe4102", "nuvoton,nuc977",
+		     "nuvoton,nuc970";
+
+	aliases {
+		serial0 = &uart0;
+		serial6 = &uart6;
+		ethernet0 = &emac0;
+		spi0 = &spi0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		bootargs = "console=ttyS0,115200n8 earlycon";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x04000000>;
+	};
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart0>;
+	status = "okay";
+};
+
+/* metering MCU link (/dev/ttyS6) */
+&uart6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart6_pg>;
+	status = "okay";
+};
+
+/* PB12 also feeds the external watchdog (see arch/arm/mach-nuc970) */
+&gpio {
+	status = "okay";
+};
+
+&emac0 {
+	phy-mode = "rmii";
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <18750000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <4>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "boot";
+				reg = <0x00000000 0x00080000>;
+				read-only;
+			};
+			partition@80000 {
+				label = "factory";
+				reg = <0x00080000 0x00080000>;
+			};
+			partition@100000 {
+				label = "kernel";
+				reg = <0x00100000 0x00280000>;
+			};
+			partition@380000 {
+				label = "rootfs";
+				reg = <0x00380000 0x00900000>;
+			};
+			partition@c80000 {
+				label = "kernel redund";
+				reg = <0x00c80000 0x00280000>;
+			};
+			partition@f00000 {
+				label = "rootfs redund";
+				reg = <0x00f00000 0x00900000>;
+			};
+			partition@1800000 {
+				label = "kernel default";
+				reg = <0x01800000 0x00200000>;
+			};
+			partition@1a00000 {
+				label = "rootfs default";
+				reg = <0x01a00000 0x00300000>;
+			};
+			partition@1d00000 {
+				label = "config1";
+				reg = <0x01d00000 0x00080000>;
+			};
+			partition@1d80000 {
+				label = "config2";
+				reg = <0x01d80000 0x00080000>;
+			};
+			partition@1e00000 {
+				label = "data1";
+				reg = <0x01e00000 0x00080000>;
+			};
+			partition@1e80000 {
+				label = "data2";
+				reg = <0x01e80000 0x00080000>;
+			};
+			partition@1f00000 {
+				label = "event1";
+				reg = <0x01f00000 0x00080000>;
+			};
+			partition@1f80000 {
+				label = "event2";
+				reg = <0x01f80000 0x00080000>;
+			};
+		};
+	};
+};

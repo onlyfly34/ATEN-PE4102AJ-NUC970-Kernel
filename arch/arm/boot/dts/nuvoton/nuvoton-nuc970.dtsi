@@ -1,0 +1,259 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Nuvoton NUC970 family (NUC970/NUC972/NUC977) SoC
+ *
+ * Register map, interrupt numbers and pin functions follow Nuvoton's NUC970
+ * Linux BSP (arch/arm/boot/dts/nuc970.dtsi, mach-nuc970/include/mach/).
+ */
+
+#include <dt-bindings/clock/nuvoton,nuc970-clk.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	interrupt-parent = <&aic>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			compatible = "arm,arm926ej-s";
+			device_type = "cpu";
+			reg = <0>;
+		};
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		gcr: syscon@b0000000 {
+			compatible = "nuvoton,nuc970-gcr";
+			reg = <0xb0000000 0x200>;
+		};
+
+		/*
+		 * Multi-function pin registers MFP_GPA_L..MFP_GPJ_L: 4 bits per
+		 * pin, pin number = port * 16 + bit (PA0 = 0, PB0 = 16, ...).
+		 * Function 0 is GPIO.
+		 */
+		pinctrl: pinctrl@b0000070 {
+			compatible = "pinctrl-single";
+			reg = <0xb0000070 0x4c>;
+			#pinctrl-cells = <2>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0xf>;
+			pinctrl-single,gpio-range = <&pinctrl_range 0 152 0>;
+
+			pinctrl_range: gpio-range {
+				#pinctrl-single,gpio-range-cells = <3>;
+			};
+
+			pinctrl_uart0: uart0-pins {
+				/* PE0 TX, PE1 RX */
+				pinctrl-single,bits = <0x20 0x00000099 0x000000ff>;
+			};
+
+			pinctrl_uart6_pg: uart6-pg-pins {
+				/* PG11 TX, PG12 RX */
+				pinctrl-single,bits = <0x34 0x00099000 0x000ff000>;
+			};
+
+			pinctrl_spi0: spi0-pins {
+				/* PB6 SS0, PB7 CLK, PB8 DO, PB9 DI, PB10/PB11 IO2/IO3 */
+				pinctrl-single,bits = <0x08 0xbb000000 0xff000000
+						       0x0c 0x0000bbbb 0x0000ffff>;
+			};
+
+			pinctrl_emac0: emac0-pins {
+				/* PF0..PF9 RMII */
+				pinctrl-single,bits = <0x28 0x11111111 0xffffffff
+						       0x2c 0x00000011 0x000000ff>;
+			};
+		};
+
+		clk: clock-controller@b0000200 {
+			compatible = "nuvoton,nuc970-clk";
+			reg = <0xb0000200 0x100>;
+			#clock-cells = <1>;
+		};
+
+		emac0: ethernet@b0002000 {
+			compatible = "nuvoton,nuc970-emac";
+			reg = <0xb0002000 0x1000>;
+			interrupts = <21 IRQ_TYPE_LEVEL_HIGH>,
+				     <19 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
+			clocks = <&clk NUC970_CLK_EMAC0>,
+				 <&clk NUC970_CLK_EMAC0_ECLK>;
+			clock-names = "hclk", "eclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_emac0>;
+			status = "disabled";
+		};
+
+		uart0: serial@b8000000 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000000 0x100>;
+			interrupts = <36 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART0>,
+				 <&clk NUC970_CLK_UART0_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart1: serial@b8000100 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000100 0x100>;
+			interrupts = <37 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART1>,
+				 <&clk NUC970_CLK_UART1_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart2: serial@b8000200 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000200 0x100>;
+			interrupts = <38 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART2>,
+				 <&clk NUC970_CLK_UART2_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart3: serial@b8000300 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000300 0x100>;
+			interrupts = <43 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART3>,
+				 <&clk NUC970_CLK_UART3_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart4: serial@b8000400 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000400 0x100>;
+			interrupts = <39 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART4>,
+				 <&clk NUC970_CLK_UART4_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart5: serial@b8000500 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000500 0x100>;
+			interrupts = <44 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART5>,
+				 <&clk NUC970_CLK_UART5_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart6: serial@b8000600 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000600 0x100>;
+			interrupts = <40 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART6>,
+				 <&clk NUC970_CLK_UART6_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart7: serial@b8000700 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000700 0x100>;
+			interrupts = <45 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART7>,
+				 <&clk NUC970_CLK_UART7_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart8: serial@b8000800 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000800 0x100>;
+			interrupts = <41 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART8>,
+				 <&clk NUC970_CLK_UART8_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart9: serial@b8000900 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000900 0x100>;
+			interrupts = <46 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART9>,
+				 <&clk NUC970_CLK_UART9_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		uart10: serial@b8000a00 {
+			compatible = "nuvoton,nuc970-uart";
+			reg = <0xb8000a00 0x100>;
+			interrupts = <42 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_UART10>,
+				 <&clk NUC970_CLK_UART10_ECLK>;
+			clock-names = "pclk", "eclk";
+			status = "disabled";
+		};
+
+		timer@b8001000 {
+			compatible = "nuvoton,nuc970-timer";
+			reg = <0xb8001000 0x100>;
+			interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_TIMER0>, <&clk NUC970_CLK_TIMER1>;
+		};
+
+		aic: interrupt-controller@b8002000 {
+			compatible = "nuvoton,nuc970-aic";
+			reg = <0xb8002000 0x200>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		/*
+		 * Ports A..J, 0x40 apart. Legacy GPIO numbering is
+		 * port * 32 + pin (PB12 = 44, PG1 = 193), as in the vendor BSP.
+		 */
+		gpio: gpio@b8003000 {
+			compatible = "nuvoton,nuc970-gpio";
+			reg = <0xb8003000 0x400>;
+			interrupts = <57 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_GPIO>, <&clk NUC970_CLK_GPIO_ECLK>;
+			clock-names = "pclk", "eclk";
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&pinctrl   0   0 16>, <&pinctrl  32  16 16>,
+				      <&pinctrl  64  32 16>, <&pinctrl  96  48 16>,
+				      <&pinctrl 128  64 16>, <&pinctrl 160  80 16>,
+				      <&pinctrl 192  96 16>, <&pinctrl 224 112 16>,
+				      <&pinctrl 256 128 16>, <&pinctrl 288 144  5>;
+			status = "disabled";
+		};
+
+		spi0: spi@b8006200 {
+			compatible = "nuvoton,nuc970-spi";
+			reg = <0xb8006200 0x100>;
+			interrupts = <51 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk NUC970_CLK_SPI0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_spi0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+	};
+};
