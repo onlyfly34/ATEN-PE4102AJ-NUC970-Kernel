@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config NET_VENDOR_NUVOTON
+	bool "Nuvoton devices"
+	default y
+	depends on ARCH_NUC970 || COMPILE_TEST
+	help
+	  If you have a network (Ethernet) card belonging to this class, say Y.
+
+if NET_VENDOR_NUVOTON
+
+config NUC970_EMAC
+	tristate "Nuvoton NUC970 Ethernet MAC"
+	depends on OF && COMMON_CLK && HAS_DMA
+	select PHYLIB
+	select MDIO_BUS
+	select OF_MDIO
+	help
+	  Driver for the 10/100 Ethernet MACs of Nuvoton NUC970 family SoCs.
+
+endif # NET_VENDOR_NUVOTON
