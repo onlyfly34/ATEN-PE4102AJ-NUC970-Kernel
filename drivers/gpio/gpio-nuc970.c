@@ -263,6 +263,7 @@ static void nuc970_gpio_irq_handler(struct irq_desc *desc)
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	unsigned long ports, pending;
 	unsigned int port, pin;
+	u32 isr, stray;
 
 	chained_irq_enter(chip, desc);
 
@@ -271,10 +272,22 @@ static void nuc970_gpio_irq_handler(struct irq_desc *desc)
 	for_each_set_bit(port, &ports, NUC970_GPIO_PORTS) {
 		void __iomem *base = ng->base + GPIO_PORT(port);
 
-		pending = readl_relaxed(base + GPIO_ISR) &
-			  (readl_relaxed(base + GPIO_IREN) |
-			   readl_relaxed(base + GPIO_IFEN)) &
-			  GENMASK(NUC970_GPIO_PINS - 1, 0);
+		isr = readl_relaxed(base + GPIO_ISR) &
+		      GENMASK(NUC970_GPIO_PINS - 1, 0);
+		pending = isr & (readl_relaxed(base + GPIO_IREN) |
+				 readl_relaxed(base + GPIO_IFEN));
+
+		/*
+		 * A status bit latched just before its pin was masked (e.g. a
+		 * button bounce racing free_irq on "echo none > edge") would
+		 * otherwise never be cleared and keep the level-triggered
+		 * parent (AIC 57) asserted forever. The BSP demux cleared
+		 * every ISR bit it saw; do the same for the unhandled ones.
+		 */
+		stray = isr & ~pending;
+		if (stray)
+			writel_relaxed(stray, base + GPIO_ISR);
+
 		for_each_set_bit(pin, &pending, NUC970_GPIO_PINS)
 			generic_handle_domain_irq(gc->irq.domain,
 					port * NUC970_GPIO_STRIDE + pin);
