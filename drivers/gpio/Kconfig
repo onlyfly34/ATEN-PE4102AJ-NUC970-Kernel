@@ -538,6 +538,17 @@ config GPIO_NOMADIK
 	  It is deeply interconnected with the associated pinctrl driver as GPIO
 	  registers handle muxing ("alternate functions") as well.
 
+config GPIO_NUC970
+	bool "Nuvoton NUC970 GPIO support"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on OF && COMMON_CLK
+	default ARCH_NUC970
+	select GPIOLIB_IRQCHIP
+	help
+	  Say Y here to support the GPIO controller of Nuvoton NUC970
+	  family SoCs, including pin interrupts. Lines use the BSP's
+	  legacy numbering (port * 32 + pin) with base 0.
+
 config GPIO_NPCM_SGPIO
 	bool "Nuvoton SGPIO support"
 	depends on ARCH_NPCM || COMPILE_TEST
