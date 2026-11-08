@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menuconfig ARCH_NUC970
+	bool "Nuvoton NUC970/NUC977 (ARM926EJ-S)"
+	depends on ARCH_MULTI_V5 && CPU_LITTLE_ENDIAN
+	select CPU_ARM926T
+	select NUC970_AIC
+	select NUC970_TIMER
+	select COMMON_CLK
+	select PINCTRL
+	select GPIOLIB
+	help
+	  Support for the Nuvoton NUC970 family (NUC970/NUC972/NUC977) of
+	  ARM926EJ-S based SoCs, as used in the ATEN PE4102 PDU.
