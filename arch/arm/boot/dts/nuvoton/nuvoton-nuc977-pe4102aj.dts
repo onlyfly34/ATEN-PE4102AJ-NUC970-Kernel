@@ -73,6 +73,12 @@
 		spi-max-frequency = <18750000>;
 		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <4>;
+		/*
+		 * The boot ROM reads with 3-byte addresses after a soft reset.
+		 * MX25L25635F uses 4-byte opcodes, but if the E variant (or a
+		 * failed SFDP read) forces 4-byte mode, leave it on shutdown.
+		 */
+		broken-flash-reset;
 
 		partitions {
 			compatible = "fixed-partitions";
