@@ -520,6 +520,17 @@ config NBPFAXI_DMA
 	help
 	  Support for "Type-AXI" NBPF DMA IPs from Renesas
 
+config NUC970_GDMA
+	tristate "Nuvoton NUC970 GDMA support"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
+	help
+	  Support for the two-channel general DMA (GDMA) controller of the
+	  Nuvoton NUC970/NUC977 SoCs. The controller only does memory to
+	  memory copies; it is registered as a dmaengine DMA_MEMCPY provider
+	  and also backs the vendor /dev/dma_proxy (NUC970_DMA_PROXY).
+
 config OWL_DMA
 	tristate "Actions Semi Owl SoCs DMA support"
 	depends on ARCH_ACTIONS
