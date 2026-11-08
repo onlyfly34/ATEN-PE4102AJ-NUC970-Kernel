@@ -230,6 +230,15 @@ config USB_EHCI_HCD_NPCM7XX
 	  Enables support for the on-chip EHCI controller on
 	  Nuvoton NPCM chips.
 
+config USB_EHCI_HCD_NUC970
+	tristate "Support for Nuvoton NUC970 on-chip EHCI USB controller"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	default y if ARCH_NUC970
+	help
+	  Enables support for the on-chip EHCI (USB 2.0) controller of the
+	  Nuvoton NUC970/NUC972/NUC977 SoCs. Full- and low-speed devices are
+	  handled by the companion OHCI, see USB_OHCI_HCD_NUC970.
+
 config USB_EHCI_HCD_OMAP
 	tristate "EHCI support for OMAP3 and later chips"
 	depends on ARCH_OMAP || COMPILE_TEST
@@ -430,6 +439,15 @@ config USB_OHCI_HCD_OMAP1
 	default y
 	help
 	  Enables support for the OHCI controller on OMAP1/2 chips.
+
+config USB_OHCI_HCD_NUC970
+	tristate "Support for Nuvoton NUC970 on-chip OHCI USB controller"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	default y if ARCH_NUC970
+	help
+	  Enables support for the on-chip OHCI (USB 1.1) controller of the
+	  Nuvoton NUC970/NUC972/NUC977 SoCs, the companion of the EHCI
+	  controller for full- and low-speed devices.
 
 config USB_OHCI_HCD_SPEAR
 	tristate "Support for ST SPEAr on-chip OHCI USB controller"
