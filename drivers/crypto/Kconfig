@@ -21,6 +21,19 @@ config CRYPTO_DEV_NUC970
 	  Driver for the AES engine in the Nuvoton NUC970/NUC977 crypto
 	  block. It provides ecb(aes), cbc(aes) and ctr(aes).
 
+config CRYPTO_DEV_NUC970_MTP
+	bool "Nuvoton NUC970 MTP key store status (vendor AF_ALG ABI)"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on HAS_IOMEM
+	depends on CRYPTO_USER_API_SKCIPHER=y
+	select CRYPTO_SKCIPHER
+	help
+	  Read-only access to the status of the on-chip MTP AES key store,
+	  through the "mtp" skcipher and the vendor kernel's private
+	  AF_ALG socket option 205 (ALG_MTP_STATUS), as used by the vendor
+	  userland's libmtp_api.so. Programming and locking the key, which
+	  burn the OTP irreversibly, are not supported.
+
 source "drivers/crypto/allwinner/Kconfig"
 
 config CRYPTO_DEV_PADLOCK

@@ -84,6 +84,11 @@
 	status = "okay";
 };
 
+/* MTP key store status for libmtp_api.so (read-only, see nuc970-mtp.c) */
+&mtp {
+	status = "okay";
+};
+
 /*
  * USB host as on the vendor kernel: port power PE14/PE15, shared
  * over-current input PH1, active low. (The PE4102AJ property.xml declares

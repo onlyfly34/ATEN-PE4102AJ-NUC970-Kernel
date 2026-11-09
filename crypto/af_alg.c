@@ -354,6 +354,23 @@ static inline int alg_setkey_by_key_serial(struct alg_sock *ask,
 
 #endif
 
+#ifdef CONFIG_CRYPTO_DEV_NUC970_MTP
+/*
+ * Nuvoton vendor ABI: ALG_MTP_STATUS asks the "mtp" skcipher for the MTP key
+ * store status, returned as the (non-negative) setsockopt() result. Only the
+ * read-only query is supported; the vendor's MTP program/lock options are not.
+ */
+#define ALG_MTP_STATUS	205
+
+static int alg_mtp_status(struct sock *sk)
+{
+	struct alg_sock *ask = alg_sk(sk);
+	static const u8 req = 1;
+
+	return ask->type->setkey(ask->private, &req, 1);
+}
+#endif
+
 static int alg_setsockopt(struct socket *sock, int level, int optname,
 			  sockptr_t optval, unsigned int optlen)
 {
@@ -399,6 +416,16 @@ static int alg_setsockopt(struct socket *sock, int level, int optname,
 			goto unlock;
 
 		err = type->setentropy(ask->private, optval, optlen);
+		break;
+#ifdef CONFIG_CRYPTO_DEV_NUC970_MTP
+	case ALG_MTP_STATUS:
+		if (sock->state == SS_CONNECTED)
+			goto unlock;
+		if (!type->setkey)
+			goto unlock;
+		err = alg_mtp_status(sk);
+		break;
+#endif
 	}
 
 unlock:

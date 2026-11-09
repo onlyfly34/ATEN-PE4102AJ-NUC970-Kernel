@@ -151,6 +151,13 @@
 			status = "disabled";
 		};
 
+		mtp: key-store@b800c000 {
+			compatible = "nuvoton,nuc970-mtp";
+			reg = <0xb800c000 0x100>;
+			clocks = <&clk NUC970_CLK_MTPC>;
+			status = "disabled";
+		};
+
 		uart0: serial@b8000000 {
 			compatible = "nuvoton,nuc970-uart";
 			reg = <0xb8000000 0x100>;
