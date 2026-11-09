@@ -18,7 +18,7 @@
 
 
 #define ETMR_IOC_MAGIC		'e'
-#define ETMR_IOC_MAXNR		3
+#define ETMR_IOC_MAXNR		9
 
 #define ETMR_IOC_STOP			_IO(ETMR_IOC_MAGIC, 0)
 #define ETMR_IOC_TOGGLE			_IOW(ETMR_IOC_MAGIC, 1, unsigned int *)
@@ -28,6 +28,9 @@
 #define ETMR_IOC_PERIODIC_FOR_WKUP	_IOW(ETMR_IOC_MAGIC, 5, unsigned int *)
 #define ETMR_IOC_CLKLXT  	        _IOW(ETMR_IOC_MAGIC, 6, unsigned int *)
 #define ETMR_IOC_CLKHXT  	        _IOW(ETMR_IOC_MAGIC, 7, unsigned int *)
+/* ATEN vendor additions: software watchdog on /dev/etimer3 (== 0x40046508/9) */
+#define ETMR_IOC_START_SW_WDT		_IOW(ETMR_IOC_MAGIC, 8, unsigned int)
+#define ETMR_IOC_CLEAR_SW_WDT		_IOW(ETMR_IOC_MAGIC, 9, unsigned int)
 
 // Valid parameters for capture mode ioctls
 #define ETMR_CAP_EDGE_FF	0x00000

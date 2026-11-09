@@ -796,11 +796,7 @@
 			etimer0 {
 				pinctrl_etimer0: etimer0 {
 					nuvoton,pins =
-						<2 6 0xd 0
-						 2 7 0xd 0
-						 //1 2 0xf 0
-						 //1 3 0xf 0
-						>;
+						<1 3 0xf 0>;	/* PB3 ETIMER0 capture (func 0xf) */
 				};
 			};
 

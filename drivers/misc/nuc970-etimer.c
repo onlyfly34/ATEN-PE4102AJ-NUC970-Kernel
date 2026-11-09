@@ -22,6 +22,7 @@
 #include <linux/poll.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/reboot.h>
 #include <linux/clk.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -403,6 +404,76 @@ out2:
 	return ret;
 }
 
+/*
+ * ATEN vendor software watchdog (ETMR_IOC_START_SW_WDT / _CLEAR_SW_WDT on
+ * /dev/etimer3). The vendor kernel stopped feeding the external watchdog once
+ * 40 keep-alive ticks (350 ms) passed without a clear, and the external WDT IC
+ * then reset the board. Here the external watchdog is fed from
+ * arch/arm/mach-nuc970, so emulate the visible behaviour: emergency_restart()
+ * after the 40 ticks plus a short grace. monitord START_SW_WDTs once and
+ * CLEAR_SW_WDTs while it stays healthy; like the vendor there is no stop.
+ */
+#define SW_WDT_TICK_MS		350
+#define SW_WDT_LIMIT		40
+#define SW_WDT_GRACE		5
+
+static struct {
+	spinlock_t lock;
+	bool enabled;
+	unsigned int count;
+} nuc970_sw_wdt = {
+	.lock = __SPIN_LOCK_UNLOCKED(nuc970_sw_wdt.lock),
+};
+
+static void nuc970_sw_wdt_tick(struct timer_list *unused);
+static DEFINE_TIMER(nuc970_sw_wdt_timer, nuc970_sw_wdt_tick);
+
+static void nuc970_sw_wdt_tick(struct timer_list *unused)
+{
+	unsigned long flags;
+	unsigned int count;
+
+	spin_lock_irqsave(&nuc970_sw_wdt.lock, flags);
+	count = ++nuc970_sw_wdt.count;
+	spin_unlock_irqrestore(&nuc970_sw_wdt.lock, flags);
+
+	if (count == SW_WDT_LIMIT)
+		pr_emerg("nuc970-etimer: software watchdog not cleared for %u ms, resetting\n",
+			 SW_WDT_LIMIT * SW_WDT_TICK_MS);
+
+	if (count >= SW_WDT_LIMIT + SW_WDT_GRACE) {
+		emergency_restart();
+		return;
+	}
+
+	mod_timer(&nuc970_sw_wdt_timer,
+		  jiffies + msecs_to_jiffies(SW_WDT_TICK_MS));
+}
+
+static void nuc970_sw_wdt_start(void)
+{
+	unsigned long flags;
+	bool start;
+
+	spin_lock_irqsave(&nuc970_sw_wdt.lock, flags);
+	start = !nuc970_sw_wdt.enabled;
+	nuc970_sw_wdt.enabled = true;
+	spin_unlock_irqrestore(&nuc970_sw_wdt.lock, flags);
+
+	if (start)
+		mod_timer(&nuc970_sw_wdt_timer,
+			  jiffies + msecs_to_jiffies(SW_WDT_TICK_MS));
+}
+
+static void nuc970_sw_wdt_clear(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&nuc970_sw_wdt.lock, flags);
+	nuc970_sw_wdt.count = 0;
+	spin_unlock_irqrestore(&nuc970_sw_wdt.lock, flags);
+}
+
 static long etimer_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct nuc970_etimer *t = (struct nuc970_etimer *)filp->private_data;
@@ -532,6 +603,14 @@ static long etimer_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		spin_unlock_irqrestore(&t->lock, flag);
 		break;
 
+	case ETMR_IOC_START_SW_WDT:
+		nuc970_sw_wdt_start();
+		break;
+
+	case ETMR_IOC_CLEAR_SW_WDT:
+		nuc970_sw_wdt_clear();
+		break;
+
 	default:
 		return -ENOTTY;
 	}
@@ -592,7 +671,9 @@ static int nuc970_etimer_probe(struct platform_device *pdev)
 
 	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
 	if (IS_ERR(pinctrl))
-		return PTR_ERR(pinctrl);
+		dev_warn(&pdev->dev,
+			 "nuc970-etimer: no default pinctrl state (%ld), continuing (pure-timer channel)",
+			 PTR_ERR(pinctrl));
 
 	if (of_property_read_u32_array(pdev->dev.of_node, "port-number", val32, 1) != 0) 
 	{

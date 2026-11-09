@@ -96,3 +96,26 @@
 	partition@1f00000  { label = "event1";         reg = <0x01f00000 0x00080000>; };
 	partition@1f80000  { label = "event2";         reg = <0x01f80000 0x00080000>; };
 };
+
+/* ETIMER: etimer0 = mains zero-cross capture on PB3 (zero_detect_mgr);
+ * etimer1-3 = pure timers (bin/etimer, libshift_reg_api, monitord SW-WDT), no external pin.
+ * etimer1-3 drop the dtsi's PC/PF default pinctrl so probe does not mux pins used elsewhere
+ * (driver patched to treat a missing default pinctrl state as a warning). */
+&etimer0 {
+	status = "okay";
+};
+&etimer1 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+&etimer2 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+&etimer3 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
