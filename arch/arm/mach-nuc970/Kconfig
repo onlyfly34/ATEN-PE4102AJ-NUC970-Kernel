@@ -11,3 +11,13 @@ menuconfig ARCH_NUC970
 	help
 	  Support for the Nuvoton NUC970 family (NUC970/NUC972/NUC977) of
 	  ARM926EJ-S based SoCs, as used in the ATEN PE4102 PDU.
+
+config NUC970_DECOMP_WDI
+	bool "Feed the PE4102 external watchdog during kernel decompression"
+	depends on ARCH_NUC970 && KERNEL_LZMA
+	help
+	  The ATEN PE4102 has an external watchdog fed by toggling PB12.
+	  LZMA decompression of the zImage takes longer than its timeout,
+	  so toggle PB12 from the LZMA range decoder. Board specific: it
+	  writes GPIOB DATAOUT at its physical address. Say N for other
+	  NUC970 boards.
