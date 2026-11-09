@@ -36,6 +36,7 @@
 #endif /* STATIC */
 
 #include <linux/decompress/mm.h>
+#include <linux/decompress/progress.h>
 
 #ifndef MIN
 #define	MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -132,6 +133,7 @@ static inline void INIT rc_init_code(struct rc *rc)
 /* Called twice, but one callsite is in inline'd rc_is_bit_0_helper() */
 static void INIT rc_do_normalize(struct rc *rc)
 {
+	decompress_progress(rc->ptr);
 	if (rc->ptr >= rc->buffer_end)
 		rc_read(rc);
 	rc->range <<= 8;

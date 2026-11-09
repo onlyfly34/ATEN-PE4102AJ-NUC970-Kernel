@@ -34,6 +34,10 @@ extern size_t strlen(const char *s);
 extern int memcmp(const void *cs, const void *ct, size_t count);
 extern char * strchrnul(const char *, int);
 
+#ifdef CONFIG_NUC970_DECOMP_WDI
+#include "nuc970-decomp-wdi.h"
+#endif
+
 #ifdef CONFIG_KERNEL_GZIP
 #include "../../../../lib/decompress_inflate.c"
 #endif

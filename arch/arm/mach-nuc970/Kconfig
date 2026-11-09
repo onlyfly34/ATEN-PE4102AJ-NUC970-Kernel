@@ -70,6 +70,18 @@ config NUC970_FIQ
 	  Support FIQ in NUC970/N9H30. For more information, please refer to NUC970/N9H30
 	  BSP user's manual.
 	  
+
+config NUC970_DECOMP_WDI
+	bool "Feed the PE4102 external watchdog during kernel decompression"
+	depends on ARCH_NUC970
+	help
+	  The ATEN PE4102 has an external watchdog fed by toggling PB12.
+	  An LZMA or XZ decompression of the zImage takes longer than its
+	  timeout, so toggle PB12 from the decompressor's progress hook
+	  (arch/arm/boot/compressed/nuc970-decomp-wdi.h). Board specific:
+	  it writes GPIOB DATAOUT at its physical address. Say N for other
+	  NUC970 boards.
+
 endif
 
 choice
