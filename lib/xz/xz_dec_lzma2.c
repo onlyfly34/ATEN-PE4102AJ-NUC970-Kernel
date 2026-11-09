@@ -9,6 +9,7 @@
 
 #include "xz_private.h"
 #include "xz_lzma2.h"
+#include <linux/decompress/progress.h>
 
 /*
  * Range decoder initialization eats the first five bytes of each LZMA chunk.
@@ -509,6 +510,7 @@ static inline bool rc_is_finished(const struct rc_dec *rc)
 static __always_inline void rc_normalize(struct rc_dec *rc)
 {
 	if (rc->range < RC_TOP_VALUE) {
+		decompress_progress(rc->in_pos);
 		rc->range <<= RC_SHIFT_BITS;
 		rc->code = (rc->code << RC_SHIFT_BITS) + rc->in[rc->in_pos++];
 	}

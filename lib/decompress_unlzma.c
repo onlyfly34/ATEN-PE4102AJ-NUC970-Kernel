@@ -36,6 +36,7 @@
 #endif /* STATIC */
 
 #include <linux/decompress/mm.h>
+#include <linux/decompress/progress.h>
 
 #ifndef MIN
 #define	MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -130,30 +131,9 @@ static inline void INIT rc_init_code(struct rc *rc)
 
 
 /* Called twice, but one callsite is in inline'd rc_is_bit_0_helper() */
-#if defined(PREBOOT) && defined(CONFIG_NUC970_DECOMP_WDI)
-/*
- * ATEN PE4102 (Nuvoton NUC977): an external watchdog must see PB12 toggle
- * within a few seconds. U-Boot feeds it until it jumps to the zImage, and
- * the kernel feeds it again from an early_initcall, but the multi-second
- * LZMA decompression in between would let it reset the board. Toggle PB12
- * (GPIOB DATAOUT, left as a GPIO output by U-Boot) about every 1 KiB of
- * input. The decompressor maps I/O 1:1 and may not have writable static
- * data, hence the physical address and the input-pointer divider.
- */
-#define NUC970_WDI_DATAOUT	0xb8003044u	/* GPIOB base 0xb8003000 + 0x44 */
-#define NUC970_WDI_BIT		(1u << 12)	/* PB12 */
-static inline void nuc970_wdi_kick(const struct rc *rc)
-{
-	if (((unsigned long)rc->ptr & 0x3ff) == 0)
-		*(volatile unsigned int *)NUC970_WDI_DATAOUT ^= NUC970_WDI_BIT;
-}
-#else
-static inline void nuc970_wdi_kick(const struct rc *rc) { }
-#endif
-
 static void INIT rc_do_normalize(struct rc *rc)
 {
-	nuc970_wdi_kick(rc);
+	decompress_progress(rc->ptr);
 	if (rc->ptr >= rc->buffer_end)
 		rc_read(rc);
 	rc->range <<= 8;
