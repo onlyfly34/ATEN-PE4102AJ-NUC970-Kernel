@@ -10,9 +10,14 @@
  * never fires, as on the ATEN PE4102AJ. The engine clock therefore defaults
  * to PCLK/4096, which always runs (18.31 kHz at a 75 MHz PCLK: 0.95 s,
  * 3.64 s and 14.37 s for n = 5..7); nuc970_wdt.clksrc=xin32k selects the
- * BSP's source. The driver picks the longest
- * interval that does not exceed the requested timeout (+5%), and the
- * timeout is capped at 9 s as in the BSP.
+ * BSP's source.
+ *
+ * Only these fixed intervals exist, so a requested timeout selects the
+ * longest interval whose whole seconds do not exceed it, and the timeout
+ * reported to the watchdog core and userspace is that interval rounded
+ * down: the chip never resets before the advertised timeout. With the
+ * default request of 9 s this gives 3 s (3.64 s) on PCLK/4096 and 8 s
+ * (8.03 s) on XIN32K. The maximum is the longest interval, rounded down.
  *
  * WDT_CR is protected by the GCR register write-protection lock, so every
  * write unlocks GCR_WRPRTR first and relocks it afterwards.
@@ -44,8 +49,7 @@
 #define  GCR_RSTSTS_WDT		BIT(5)
 #define GCR_WRPRTR		0x1fc
 
-#define WDT_DEFAULT_TIMEOUT	9
-#define WDT_MAX_TIMEOUT		9
+#define WDT_DEFAULT_TIMEOUT	9	/* requested; see above */
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
 module_param(nowayout, bool, 0);
@@ -90,15 +94,23 @@ static unsigned long nuc970_wdt_interval_ms(struct nuc970_wdt *wdt, u32 wtis)
 		       wdt->rate);
 }
 
-/* the longest interval that does not exceed the timeout by more than 5% */
+/* the longest interval whose whole seconds do not exceed the timeout */
 static u32 nuc970_wdt_wtis(struct nuc970_wdt *wdt, unsigned int timeout)
 {
 	u32 wtis;
 
 	for (wtis = WDT_WTIS_MAX; wtis > 0; wtis--)
-		if (nuc970_wdt_interval_ms(wdt, wtis) <= timeout * 1050UL)
+		if (nuc970_wdt_interval_ms(wdt, wtis) < (timeout + 1) * MSEC_PER_SEC)
 			break;
 	return wtis;
+}
+
+/* the timeout actually provided for a request, in whole seconds (>= 1) */
+static unsigned int nuc970_wdt_real_timeout(struct nuc970_wdt *wdt,
+					    unsigned int timeout)
+{
+	return max(1UL, nuc970_wdt_interval_ms(wdt, nuc970_wdt_wtis(wdt, timeout)) /
+			MSEC_PER_SEC);
 }
 
 static int nuc970_wdt_ping(struct watchdog_device *wdd)
@@ -132,7 +144,9 @@ static int nuc970_wdt_stop(struct watchdog_device *wdd)
 static int nuc970_wdt_set_timeout(struct watchdog_device *wdd,
 				  unsigned int timeout)
 {
-	wdd->timeout = timeout;
+	struct nuc970_wdt *wdt = watchdog_get_drvdata(wdd);
+
+	wdd->timeout = nuc970_wdt_real_timeout(wdt, timeout);
 	if (watchdog_active(wdd))
 		return nuc970_wdt_start(wdd);
 	return 0;
@@ -237,9 +251,11 @@ static int nuc970_wdt_probe(struct platform_device *pdev)
 	wdt->wdd.ops = &nuc970_wdt_ops;
 	wdt->wdd.parent = dev;
 	wdt->wdd.min_timeout = 1;
-	wdt->wdd.max_timeout = WDT_MAX_TIMEOUT;
-	wdt->wdd.timeout = WDT_DEFAULT_TIMEOUT;
+	wdt->wdd.max_timeout = max(1UL, nuc970_wdt_interval_ms(wdt, WDT_WTIS_MAX) /
+					 MSEC_PER_SEC);
+	wdt->wdd.timeout = min(WDT_DEFAULT_TIMEOUT, wdt->wdd.max_timeout);
 	watchdog_init_timeout(&wdt->wdd, heartbeat, dev);
+	wdt->wdd.timeout = nuc970_wdt_real_timeout(wdt, wdt->wdd.timeout);
 	watchdog_set_nowayout(&wdt->wdd, nowayout);
 	watchdog_stop_on_reboot(&wdt->wdd);
 	watchdog_set_drvdata(&wdt->wdd, wdt);
@@ -257,10 +273,10 @@ static int nuc970_wdt_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	dev_info(dev, "watchdog, timeout %u s (resets after %lu ms, %s %lu Hz)%s%s\n",
+	dev_info(dev, "watchdog, timeout %u s (resets after %lu ms, %s %lu Hz, max %u s)%s%s\n",
 		 wdt->wdd.timeout,
 		 nuc970_wdt_interval_ms(wdt, nuc970_wdt_wtis(wdt, wdt->wdd.timeout)),
-		 clksrc, wdt->rate, nowayout ? ", nowayout" : "",
+		 clksrc, wdt->rate, wdt->wdd.max_timeout, nowayout ? ", nowayout" : "",
 		 wdt->wdd.bootstatus ? ", last reset by watchdog" : "");
 	return 0;
 }
