@@ -530,7 +530,6 @@ config NUC970_EBI
 config NUC970_EBI_CS0
 	bool "Using EBI CS0"
 	depends on NUC970_EBI
-	default y
 	help
 	 Select EBI chip select 0.
 config NUC970_EBI_CS1
