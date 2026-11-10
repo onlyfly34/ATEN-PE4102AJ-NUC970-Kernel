@@ -6,8 +6,14 @@
  * BSP (Copyright (c) 2014 Nuvoton technology corporation).
  *
  * TIMER0 is the clock event device, TIMER1 a free-running 24-bit up counter
- * used as clocksource and sched_clock. Both are clocked from XIN (12 MHz)
- * through the 8-bit prescaler.
+ * used as clocksource and sched_clock. Both are clocked from XIN (12 MHz).
+ * TIMER0 divides it by 100 as in the BSP. TIMER1 counts at the full 12 MHz:
+ * the ARM926 has no cycle counter, so random_get_entropy() falls back to
+ * this clocksource. At the BSP's 120 kHz consecutive reads rarely differ,
+ * the CRNG's timing-jitter entropy source gives up, and getrandom() or
+ * /dev/random block for minutes after boot until interrupt entropy alone
+ * seeds the CRNG. The 24-bit counter then wraps every 1.4 s, which
+ * sched_clock and the timekeeping core handle.
  */
 
 #include <linux/clk.h>
@@ -31,7 +37,8 @@
 #define TCSR_MODE_MASK	(0x3 << 27)
 #define TCSR_ONESHOT	(0x0 << 27)
 #define TCSR_PERIODIC	(0x1 << 27)
-#define TCSR_PRESCALE	0x63		/* divide by prescale + 1 = 100 */
+#define TCSR_PRESCALE	0x63		/* TIMER0: divide by prescale + 1 = 100 */
+#define TCSR_PRESCALE1	0x00		/* TIMER1: undivided */
 
 #define TDR_BITS	24
 
@@ -135,7 +142,7 @@ static int __init nuc970_timer_init(struct device_node *np)
 	}
 
 	rate0 = nuc970_tmr_enable_clk(np, 0) / (TCSR_PRESCALE + 1);
-	rate1 = nuc970_tmr_enable_clk(np, 1) / (TCSR_PRESCALE + 1);
+	rate1 = nuc970_tmr_enable_clk(np, 1) / (TCSR_PRESCALE1 + 1);
 	if (!rate0 || !rate1) {
 		ret = -EINVAL;
 		goto err_unmap;
@@ -144,7 +151,7 @@ static int __init nuc970_timer_init(struct device_node *np)
 	/* TIMER1: free running clocksource */
 	writel_relaxed(0, tmr_base + TMR_TCSR(1));
 	writel_relaxed(0xffffffff, tmr_base + TMR_TICR(1));
-	writel_relaxed(TCSR_CEN | TCSR_PERIODIC | TCSR_PRESCALE,
+	writel_relaxed(TCSR_CEN | TCSR_PERIODIC | TCSR_PRESCALE1,
 		       tmr_base + TMR_TCSR(1));
 
 	ret = clocksource_mmio_init(tmr_base + TMR_TDR(1), "nuc970-timer1",
