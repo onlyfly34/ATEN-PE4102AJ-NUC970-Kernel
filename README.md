@@ -28,24 +28,18 @@ Each `pe4102aj-*` branch = its upstream base + a small, rebasable PE4102AJ patch
 ## Drivers enabled for the NUC970 port
 The main board-specific symbols turned on in `pe4102aj_defconfig` (see that file for the full list):
 
-- **SoC platform / boot** — `ARCH_NUC970`; `NUC970_DECOMP_WDI` (feed the external WDI while the kernel
-  self-decompresses, or the board resets ~3 s in); `ARM_APPENDED_DTB` + `ARM_ATAG_DTB_COMPAT` (DTB is
-  appended to the uImage — U-Boot passes no Device Tree).
-- **Storage / rootfs (SPI-NOR)** — `MTD`, `MTD_BLOCK`, `MTD_SPI_NOR`, `SPI_NUC970` (MX25L25635 32 MB,
-  14-partition map); `CRAMFS` + `CRAMFS_MTD` (read-only root), `JFFS2_FS` (`/nv` read-write);
-  `BLK_DEV_RAM` / `BLK_DEV_INITRD` (ramdisk boot path used during bring-up).
-- **Networking** — `NUC970_EMAC` (on-chip MAC) + `ICPLUS_PHY`; `NETFILTER` / `IP_NF_IPTABLES` /
-  `IP6_NF_IPTABLES` for the vendor firewall.
-- **Serial / console** — `SERIAL_NUC970` (+`_CONSOLE`) on UART6/PG; `USB_SERIAL_PL2303`.
-- **GPIO / pinctrl** — `PINCTRL_SINGLE`, `GPIO_SYSFS` (outlet relays, panel buttons, WDI and buzzer
-  are driven through sysfs GPIO).
-- **Timers / RTC** — `NUC970_ETIMER` (etimer, used as the vendor software watchdog); `RTC_DRV_NUC970`.
-- **Watchdog** — `WATCHDOG`, `NUC970_WATCHDOG`, `WATCHDOG_NOWAYOUT` (internal SoC WDT at `/dev/watchdog`,
-  nowayout; the userspace guard opens it and must keep kicking).
-- **DMA** — `NUC970_GDMA`, `NUC970_DMA_PROXY` (GDMA plus the userspace DMA-proxy the vendor stack uses).
-- **Crypto / OTP** — `CRYPTO_DEV_NUC970` (hardware AES/SHA), `CRYPTO_DEV_NUC970_MTP` (MTP / OTP key
-  access for `mtp_tool`), and the AF_ALG user APIs (`CRYPTO_USER_API_*`).
-- **USB** — `USB_EHCI_HCD`, `USB_OHCI_HCD`, `USB_STORAGE`.
+| area | key `CONFIG_*` symbols | purpose |
+|------|------------------------|---------|
+| SoC platform / boot | `ARCH_NUC970`, `NUC970_DECOMP_WDI`, `ARM_APPENDED_DTB`, `ARM_ATAG_DTB_COMPAT` | NUC970 platform; feed the external WDI while the kernel self-decompresses (board resets ~3 s in otherwise); DTB is appended to the uImage (U-Boot passes no Device Tree) |
+| Storage / rootfs (SPI-NOR) | `MTD`, `MTD_BLOCK`, `MTD_SPI_NOR`, `SPI_NUC970`, `CRAMFS`(+`CRAMFS_MTD`), `JFFS2_FS`, `BLK_DEV_RAM`, `BLK_DEV_INITRD` | MX25L25635 32 MB, 14-partition map; read-only cramfs root + JFFS2 `/nv`; ramdisk boot path used during bring-up |
+| Networking | `NUC970_EMAC`, `ICPLUS_PHY`, `NETFILTER`, `IP_NF_IPTABLES`, `IP6_NF_IPTABLES` | on-chip MAC + IC+ PHY; vendor firewall |
+| Serial / console | `SERIAL_NUC970`(+`_CONSOLE`), `USB_SERIAL_PL2303` | UART6/PG console; USB serial |
+| GPIO / pinctrl | `PINCTRL_SINGLE`, `GPIO_SYSFS` | outlet relays, panel buttons, WDI and buzzer driven through sysfs GPIO |
+| Timers / RTC | `NUC970_ETIMER`, `RTC_DRV_NUC970` | etimer (vendor software watchdog); RTC |
+| Watchdog | `WATCHDOG`, `NUC970_WATCHDOG`, `WATCHDOG_NOWAYOUT` | internal SoC WDT at `/dev/watchdog`, nowayout (userspace guard opens it and must keep kicking) |
+| DMA | `NUC970_GDMA`, `NUC970_DMA_PROXY` | GDMA plus the userspace DMA-proxy the vendor stack uses |
+| Crypto / OTP | `CRYPTO_DEV_NUC970`, `CRYPTO_DEV_NUC970_MTP`, `CRYPTO_USER_API_*` | hardware AES/SHA; MTP / OTP key access for `mtp_tool`; AF_ALG user APIs |
+| USB | `USB_EHCI_HCD`, `USB_OHCI_HCD`, `USB_STORAGE` | USB host (EHCI/OHCI) + mass storage |
 
 > **No hardware RNG.** `HW_RANDOM` is deliberately *off* — the NUC970 has no TRNG. The CRNG seeds from
 > jitter entropy, which is why the 5.10/6.18 ports clock TIMER1 at 12 MHz (fine-grained `get_entropy`)
