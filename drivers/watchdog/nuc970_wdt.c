@@ -4,10 +4,13 @@
  *
  * Based on the Nuvoton BSP driver (Copyright (c) 2014 Nuvoton Technology
  * corporation). WTIS = n resets the chip 2^(2n + 4) + 1024 engine clocks
- * after the last ping. The BSP counts the 32.768 kHz XIN32K crystal, giving
- * 0.53 s, 2.03 s and 8.03 s for n = 5..7. On boards where that crystal does
- * not run the counter never moves, so the engine clock can instead be
- * PCLK/4096 with nuc970_wdt.clksrc=pclk4096. The driver picks the longest
+ * after the last ping. The BSP counts the 32.768 kHz XIN32K crystal (0.53 s,
+ * 2.03 s and 8.03 s for n = 5..7), but that crystal is optional: where it is
+ * missing or does not run, the counter never moves and the watchdog silently
+ * never fires, as on the ATEN PE4102AJ. The engine clock therefore defaults
+ * to PCLK/4096, which always runs (18.31 kHz at a 75 MHz PCLK: 0.95 s,
+ * 3.64 s and 14.37 s for n = 5..7); nuc970_wdt.clksrc=xin32k selects the
+ * BSP's source. The driver picks the longest
  * interval that does not exceed the requested timeout (+5%), and the
  * timeout is capped at 9 s as in the BSP.
  *
@@ -54,9 +57,9 @@ module_param(heartbeat, uint, 0);
 MODULE_PARM_DESC(heartbeat, "Watchdog timeout in seconds (default="
 		 __MODULE_STRING(WDT_DEFAULT_TIMEOUT) ")");
 
-static char *clksrc = "xin32k";
+static char *clksrc = "pclk4096";
 module_param(clksrc, charp, 0);
-MODULE_PARM_DESC(clksrc, "Engine clock: xin32k (default, as the BSP) or pclk4096");
+MODULE_PARM_DESC(clksrc, "Engine clock: pclk4096 (default) or xin32k (as the BSP)");
 
 struct nuc970_wdt {
 	struct watchdog_device wdd;
