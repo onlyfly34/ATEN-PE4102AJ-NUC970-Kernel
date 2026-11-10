@@ -3,10 +3,13 @@
  * Nuvoton NUC970/NUC977 watchdog timer
  *
  * Based on the Nuvoton BSP driver (Copyright (c) 2014 Nuvoton Technology
- * corporation). The watchdog counts the 32.768 kHz XIN32K clock and offers
- * three useful intervals: 0.53 s, 2.03 s and 8.03 s. Like the BSP, a
- * requested timeout below 2 s selects 0.53 s, below 8 s selects 2.03 s and
- * anything else 8.03 s, with the timeout capped at 9 s.
+ * corporation). WTIS = n resets the chip 2^(2n + 4) + 1024 engine clocks
+ * after the last ping. The BSP counts the 32.768 kHz XIN32K crystal, giving
+ * 0.53 s, 2.03 s and 8.03 s for n = 5..7. On boards where that crystal does
+ * not run the counter never moves, so the engine clock can instead be
+ * PCLK/4096 with nuc970_wdt.clksrc=pclk4096. The driver picks the longest
+ * interval that does not exceed the requested timeout (+5%), and the
+ * timeout is capped at 9 s as in the BSP.
  *
  * WDT_CR is protected by the GCR register write-protection lock, so every
  * write unlocks GCR_WRPRTR first and relocks it afterwards.
@@ -20,7 +23,9 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
+#include <linux/math64.h>
 #include <linux/spinlock.h>
+#include <linux/string.h>
 #include <linux/watchdog.h>
 
 #define WDT_CR			0x00
@@ -30,9 +35,7 @@
 #define  WDT_CR_WTRE		BIT(1)		/* reset enable */
 #define  WDT_CR_WTR		BIT(0)		/* restart the counter */
 
-#define WDT_WTIS_0_53S		5
-#define WDT_WTIS_2_03S		6
-#define WDT_WTIS_8_03S		7
+#define WDT_WTIS_MAX		7
 
 #define GCR_RSTSTS		0x6c
 #define  GCR_RSTSTS_WDT		BIT(5)
@@ -51,10 +54,15 @@ module_param(heartbeat, uint, 0);
 MODULE_PARM_DESC(heartbeat, "Watchdog timeout in seconds (default="
 		 __MODULE_STRING(WDT_DEFAULT_TIMEOUT) ")");
 
+static char *clksrc = "xin32k";
+module_param(clksrc, charp, 0);
+MODULE_PARM_DESC(clksrc, "Engine clock: xin32k (default, as the BSP) or pclk4096");
+
 struct nuc970_wdt {
 	struct watchdog_device wdd;
 	void __iomem *base;
 	void __iomem *gcr;
+	unsigned long rate;	/* engine clock, Hz */
 	spinlock_t lock;
 };
 
@@ -73,13 +81,21 @@ static void nuc970_wdt_write(struct nuc970_wdt *wdt, u32 val)
 	spin_unlock_irqrestore(&wdt->lock, flags);
 }
 
-static u32 nuc970_wdt_wtis(unsigned int timeout)
+static unsigned long nuc970_wdt_interval_ms(struct nuc970_wdt *wdt, u32 wtis)
 {
-	if (timeout < 2)
-		return WDT_WTIS_0_53S;
-	if (timeout < 8)
-		return WDT_WTIS_2_03S;
-	return WDT_WTIS_8_03S;
+	return div_u64(((1ULL << (2 * wtis + 4)) + 1024) * MSEC_PER_SEC,
+		       wdt->rate);
+}
+
+/* the longest interval that does not exceed the timeout by more than 5% */
+static u32 nuc970_wdt_wtis(struct nuc970_wdt *wdt, unsigned int timeout)
+{
+	u32 wtis;
+
+	for (wtis = WDT_WTIS_MAX; wtis > 0; wtis--)
+		if (nuc970_wdt_interval_ms(wdt, wtis) <= timeout * 1050UL)
+			break;
+	return wtis;
 }
 
 static int nuc970_wdt_ping(struct watchdog_device *wdd)
@@ -97,7 +113,7 @@ static int nuc970_wdt_start(struct watchdog_device *wdd)
 	struct nuc970_wdt *wdt = watchdog_get_drvdata(wdd);
 
 	nuc970_wdt_write(wdt, FIELD_PREP(WDT_CR_WTIS,
-					 nuc970_wdt_wtis(wdd->timeout)) |
+					 nuc970_wdt_wtis(wdt, wdd->timeout)) |
 			      WDT_CR_WTE | WDT_CR_WTRE | WDT_CR_WTR);
 	return 0;
 }
@@ -169,7 +185,7 @@ static int nuc970_wdt_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct nuc970_wdt *wdt;
-	struct clk *eclk, *lxt, *pclk;
+	struct clk *eclk, *src, *pclk;
 	int err;
 
 	wdt = devm_kzalloc(dev, sizeof(*wdt), GFP_KERNEL);
@@ -192,14 +208,21 @@ static int nuc970_wdt_probe(struct platform_device *pdev)
 	eclk = devm_clk_get(dev, "eclk");
 	if (IS_ERR(eclk))
 		return dev_err_probe(dev, PTR_ERR(eclk), "no eclk\n");
-	lxt = devm_clk_get(dev, "lxt");
-	if (IS_ERR(lxt))
-		return dev_err_probe(dev, PTR_ERR(lxt), "no lxt\n");
+	if (!strcmp(clksrc, "xin32k"))
+		src = devm_clk_get(dev, "lxt");
+	else if (!strcmp(clksrc, "pclk4096"))
+		src = devm_clk_get(dev, "pclk4096");
+	else
+		return dev_err_probe(dev, -EINVAL, "unknown clksrc %s\n", clksrc);
+	if (IS_ERR(src))
+		return dev_err_probe(dev, PTR_ERR(src), "no %s clock\n", clksrc);
 
-	/* count the 32.768 kHz crystal, as the BSP's XIN32K option does */
-	err = clk_set_parent(clk_get_parent(eclk), lxt);
+	err = clk_set_parent(clk_get_parent(eclk), src);
 	if (err)
-		return dev_err_probe(dev, err, "cannot select XIN32K\n");
+		return dev_err_probe(dev, err, "cannot select %s\n", clksrc);
+	wdt->rate = clk_get_rate(eclk);
+	if (!wdt->rate)
+		return dev_err_probe(dev, -EINVAL, "%s rate is 0\n", clksrc);
 	err = clk_prepare_enable(eclk);
 	if (err)
 		return err;
@@ -231,8 +254,10 @@ static int nuc970_wdt_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	dev_info(dev, "watchdog, timeout %u s%s%s\n", wdt->wdd.timeout,
-		 nowayout ? ", nowayout" : "",
+	dev_info(dev, "watchdog, timeout %u s (resets after %lu ms, %s %lu Hz)%s%s\n",
+		 wdt->wdd.timeout,
+		 nuc970_wdt_interval_ms(wdt, nuc970_wdt_wtis(wdt, wdt->wdd.timeout)),
+		 clksrc, wdt->rate, nowayout ? ", nowayout" : "",
 		 wdt->wdd.bootstatus ? ", last reset by watchdog" : "");
 	return 0;
 }

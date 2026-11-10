@@ -323,8 +323,9 @@
 			compatible = "nuvoton,nuc970-wdt";
 			reg = <0xb8001800 0x100>;
 			clocks = <&clk NUC970_CLK_WDT>, <&clk NUC970_CLK_WDT_ECLK>,
-				 <&clk NUC970_CLK_XIN32K>;
-			clock-names = "pclk", "eclk", "lxt";
+				 <&clk NUC970_CLK_XIN32K>,
+				 <&clk NUC970_CLK_PCLK4096_DIV>;
+			clock-names = "pclk", "eclk", "lxt", "pclk4096";
 			nuvoton,gcr = <&gcr>;
 			status = "disabled";
 		};
