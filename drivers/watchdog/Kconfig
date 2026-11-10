@@ -691,6 +691,19 @@ config SUNXI_WATCHDOG
 	  To compile this driver as a module, choose M here: the
 	  module will be called sunxi_wdt.
 
+config NUC970_WATCHDOG
+	tristate "Nuvoton NUC970 watchdog"
+	depends on ARCH_NUC970 || COMPILE_TEST
+	depends on HAS_IOMEM && OF
+	select WATCHDOG_CORE
+	help
+	  Say Y here to include support for the watchdog timer of the
+	  Nuvoton NUC970/NUC977 SoCs. It counts the 32.768 kHz crystal
+	  and resets the chip after 0.53, 2.03 or 8.03 seconds.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called nuc970_wdt.
+
 config NPCM7XX_WATCHDOG
 	tristate "Nuvoton NPCM750 watchdog"
 	depends on ARCH_NPCM || COMPILE_TEST
