@@ -542,7 +542,6 @@ config GPIO_NUC970
 	bool "Nuvoton NUC970 GPIO support"
 	depends on ARCH_NUC970 || COMPILE_TEST
 	depends on OF && COMMON_CLK
-	default ARCH_NUC970
 	select GPIOLIB_IRQCHIP
 	help
 	  Say Y here to support the GPIO controller of Nuvoton NUC970
