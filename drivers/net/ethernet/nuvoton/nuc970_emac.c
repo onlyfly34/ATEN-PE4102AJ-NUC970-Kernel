@@ -55,9 +55,7 @@
 #define  MIIDA_PHYWR		BIT(16)
 #define  MIIDA_PHYBUSY		BIT(17)
 #define  MIIDA_MDCON		BIT(19)
-#define REG_FFTCR		0x09c
-#define  FFTCR_TXTHD		(0x3 << 8)
-#define  FFTCR_BLENGTH		(0x1 << 20)
+#define REG_FFTCR		0x09c	/* not written, see nuc970_init_mac() */
 #define REG_TSDR		0x0a0
 #define REG_RSDR		0x0a4
 #define REG_DMARFC		0x0a8
@@ -374,7 +372,25 @@ static void nuc970_init_mac(struct nuc970_emac *priv)
 
 	nuc970_soft_reset(priv);
 
-	emac_write(priv, REG_FFTCR, FFTCR_TXTHD | FFTCR_BLENGTH);
+	/*
+	 * FFTCR (FIFO thresholds) is deliberately left at its reset value
+	 * 0x00000101: RXTHD (bits 1:0) = 1, TXTHD (bits 9:8) = 1 and BLENGTH
+	 * (bits 21:20) = 0.
+	 *
+	 * The BSP driver writes TXTHD (3 << 8) | BLENGTH (1 << 20) =
+	 * 0x00100300 at this point, which also clears RXTHD. It does so right
+	 * after setting MCMDR.SWR, without waiting for the reset to finish,
+	 * so the write is lost and the BSP has always run with the reset
+	 * value. This driver waits for the reset, and the same write took
+	 * effect: with RXTHD = 0, the frame that follows a frame of 64 bytes
+	 * or less is stored four bytes early in a receive buffer that starts
+	 * two bytes into a word (NET_IP_ALIGN). The first word of that frame
+	 * is lost and the rest moves up, while its CRC, length and descriptor
+	 * status are good, so the stack drops it and no error is counted.
+	 *
+	 * RXTHD is taken over when the MAC is set up; writing FFTCR once the
+	 * receiver runs does not change the behaviour.
+	 */
 	emac_write(priv, REG_RXDLSA, priv->rxd_dma);
 	emac_write(priv, REG_TXDLSA, priv->txd_dma);
 
