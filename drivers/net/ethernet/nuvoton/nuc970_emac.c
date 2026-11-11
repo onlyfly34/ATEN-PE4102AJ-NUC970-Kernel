@@ -771,8 +771,9 @@ static int nuc970_phy_connect(struct nuc970_emac *priv)
 			return PTR_ERR(phydev);
 	}
 
-	/* 10/100 MAC */
+	/* 10/100 MAC without EEE (LPI) support */
 	phy_set_max_speed(phydev, SPEED_100);
+	phy_disable_eee(phydev);
 	phy_attached_info(phydev);
 	return 0;
 }
